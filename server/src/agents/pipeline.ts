@@ -6,16 +6,13 @@
  * Grounded against LangChain docs for @langchain/langgraph 1.4.8 (StateSchema API).
  */
 import { StateGraph, StateSchema, START, END, type GraphNode } from "@langchain/langgraph";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { z } from "zod";
 import { ActionPlanSchema, RiskFindingSchema, ScanResult, ScanResultSchema } from "../model.js";
 import { getItemTimeline } from "../github.js";
+import { currentLlm } from "../llm.js";
 
-export const llm = new ChatGoogleGenerativeAI({
-  model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
-  apiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,
-  temperature: 0.2,
-});
+const warn = (node: string, e: unknown) =>
+  console.warn(`[pipeline] ${node} node degraded:`, String((e as Error).message).slice(0, 300));
 
 const State = new StateSchema({
   scan: ScanResultSchema,
@@ -47,47 +44,66 @@ const riskNode: GraphNode<typeof State> = async (state) => {
   const timelines: Record<number, string[]> = {};
   for (const n of riskyItems) timelines[n] = await getItemTimeline(n).catch(() => []);
 
-  const out = await llm
-    .withStructuredOutput(z.object({ findings: RiskFindingSchema.array() }))
-    .invoke([
-      {
-        role: "system",
-        content:
-          "You are the risk & root-cause analyst of Cadence, an Engineering Delivery Manager AI. " +
-          "You receive DETERMINISTIC risk findings (facts — keep every one, never invent or drop items) plus real GitHub timeline evidence. " +
-          "For each finding, fill rootCause (the specific underlying why, citing evidence like reviewer load, CI failures, staleness, board state) " +
-          "and recommendedAction (one concrete, immediately executable next step naming people/items). Keep reason/category/severity/itemNumber unchanged.",
-      },
-      {
-        role: "user",
-        content: `SPRINT MODEL + DETERMINISTIC FINDINGS:\n${modelBrief(scan)}\n\nTIMELINE EVIDENCE (tool: get_item_timeline):\n${JSON.stringify(timelines, null, 1)}`,
-      },
-    ]);
-  return { enrichedFindings: out.findings };
+  try {
+    const llm = await currentLlm();
+    const out = await llm
+      .withStructuredOutput(z.object({ findings: RiskFindingSchema.array() }))
+      .invoke([
+        {
+          role: "system",
+          content:
+            "You are the risk & root-cause analyst of Cadence, an Engineering Delivery Manager AI. " +
+            "You receive DETERMINISTIC risk findings (facts — keep every one, never invent or drop items) plus real GitHub timeline evidence. " +
+            "For each finding, fill rootCause (the specific underlying why, citing evidence like reviewer load, CI failures, staleness, board state) " +
+            "and recommendedAction (one concrete, immediately executable next step naming people/items). Keep reason/category/severity/itemNumber unchanged. " +
+            "Write rootCause and recommendedAction as ONE short sentence each — never repeat a sentence, never restate the same point twice.",
+        },
+        {
+          role: "user",
+          content: `SPRINT MODEL + DETERMINISTIC FINDINGS:\n${modelBrief(scan)}\n\nTIMELINE EVIDENCE (tool: get_item_timeline):\n${JSON.stringify(timelines, null, 1)}`,
+        },
+      ]);
+    return { enrichedFindings: out.findings };
+  } catch (e) {
+    // Enrichment is additive: the deterministic findings are already complete and correct,
+    // so a model that loops or truncates costs us the "why", not the whole run.
+    warn("risk", e);
+    return { enrichedFindings: scan.findings };
+  }
 };
 
 const forecastNode: GraphNode<typeof State> = async (state) => {
   await sleep(2000); // free-tier RPM cushion
   const { scan } = state;
-  const out = await llm.withStructuredOutput(z.object({ narrative: z.string() })).invoke([
-    {
-      role: "system",
-      content:
-        "You are the delivery forecast analyst of Cadence. The completion likelihood, projected slip, and RAG status are computed deterministically — " +
-        "you must NOT change them. Write a 2-4 sentence narrative explaining WHY the numbers are what they are, naming the specific items and bottlenecks driving the risk.",
-    },
-    {
-      role: "user",
-      content: `FORECAST (fixed): ${JSON.stringify(scan.forecast)}\nFINDINGS: ${JSON.stringify(state.enrichedFindings)}\nSPRINT: ${JSON.stringify(scan.model.sprint)}`,
-    },
-  ]);
-  return { forecastNarrative: out.narrative };
+  try {
+    const llm = await currentLlm();
+    const out = await llm.withStructuredOutput(z.object({ narrative: z.string() })).invoke([
+      {
+        role: "system",
+        content:
+          "You are the delivery forecast analyst of Cadence. The completion likelihood, projected slip, and RAG status are computed deterministically — " +
+          "you must NOT change them. Write a 2-4 sentence narrative explaining WHY the numbers are what they are, naming the specific items and bottlenecks driving the risk. " +
+          "Never repeat a sentence.",
+      },
+      {
+        role: "user",
+        content: `FORECAST (fixed): ${JSON.stringify(scan.forecast)}\nFINDINGS: ${JSON.stringify(state.enrichedFindings)}\nSPRINT: ${JSON.stringify(scan.model.sprint)}`,
+      },
+    ]);
+    return { forecastNarrative: out.narrative };
+  } catch (e) {
+    // The RAG numbers are deterministic and already on screen; only the prose is lost.
+    warn("forecast", e);
+    return { forecastNarrative: "" };
+  }
 };
 
 const actionNode: GraphNode<typeof State> = async (state) => {
   await sleep(2000);
   const { scan } = state;
-  const out = await llm.withStructuredOutput(ActionPlanSchema).invoke([
+  try {
+    const llm = await currentLlm();
+    const out = await llm.withStructuredOutput(ActionPlanSchema).invoke([
     {
       role: "system",
       content:
@@ -100,10 +116,34 @@ const actionNode: GraphNode<typeof State> = async (state) => {
     {
       role: "user",
       content: `FINDINGS: ${JSON.stringify(state.enrichedFindings)}\nFORECAST: ${JSON.stringify({ ...scan.forecast, narrative: state.forecastNarrative })}\nSPRINT MODEL: ${modelBrief(scan)}`,
-    },
-  ]);
-  return { actionPlan: out };
+      },
+    ]);
+    return { actionPlan: out };
+  } catch (e) {
+    // Last resort: report the deterministic truth rather than losing the run. We draft no
+    // GitHub writes or DMs here — those need judgment we just failed to get.
+    warn("action", e);
+    return { actionPlan: { githubActions: [], ownerMessages: [], slackReport: deterministicReport(scan) } };
+  }
 };
+
+/** A report built only from numbers we computed ourselves — always available. */
+function deterministicReport(scan: ScanResult): string {
+  const emoji = { red: "🔴", amber: "🟡", green: "🟢" }[scan.forecast.rag];
+  const top = scan.findings
+    .filter((f) => f.severity === "high")
+    .slice(0, 5)
+    .map((f) => `• #${f.itemNumber} — ${f.reason}`);
+  return [
+    `${emoji} *Sprint health: ${scan.forecast.rag.toUpperCase()}*`,
+    `${scan.forecast.completionLikelihood}% likely to complete · ${scan.forecast.projectedSlipDays}d projected slip · ${scan.forecast.daysLeft}d left`,
+    "",
+    top.length ? "*Top risks*" : "No high-severity risks.",
+    ...top,
+    "",
+    "_The analysis model was unavailable, so this report is the deterministic scan only._",
+  ].join("\n");
+}
 
 const graph = new StateGraph(State)
   .addNode("risk", riskNode)
