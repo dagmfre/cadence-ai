@@ -5,16 +5,21 @@
  */
 import { Octokit } from "@octokit/rest";
 import { BoardStatus, DeliveryItem, SprintModel, SprintModelSchema } from "./model.js";
+import { getWorkspace } from "./workspace.js";
 
-const token = process.env.GITHUB_TOKEN_CLASSIC ?? process.env.GITHUB_TOKEN ?? "";
-if (!token) throw new Error("GITHUB_TOKEN_CLASSIC missing in .env");
-export const gh = new Octokit({ auth: token });
-
-const [owner, repo] = (process.env.TARGET_REPO ?? "").split("/") as [string, string];
-const projectNumber = Number(process.env.PROJECT_NUMBER ?? 2);
-if (!owner || !repo) throw new Error('TARGET_REPO must be "owner/name"');
+let cachedGh: { token: string; gh: Octokit } | null = null;
+/** Lazy workspace-driven client — wizard-connected config wins over env (C1). */
+async function ctx() {
+  const ws = await getWorkspace();
+  if (!ws.githubToken) throw new Error("No GitHub token — connect GitHub in the wizard or set GITHUB_TOKEN_CLASSIC");
+  const [owner, repo] = ws.repo.split("/") as [string, string];
+  if (!owner || !repo) throw new Error('Workspace repo must be "owner/name"');
+  if (cachedGh?.token !== ws.githubToken) cachedGh = { token: ws.githubToken, gh: new Octokit({ auth: ws.githubToken }) };
+  return { gh: cachedGh.gh, owner, repo, projectNumber: ws.projectNumber };
+}
 
 async function boardStatuses(): Promise<Map<number, string>> {
+  const { gh, owner, projectNumber } = await ctx();
   const q: any = await gh.graphql(
     `query($login:String!,$num:Int!){ user(login:$login){ projectV2(number:$num){
       items(first:100){ nodes{
@@ -30,6 +35,7 @@ async function boardStatuses(): Promise<Map<number, string>> {
 
 /** If CI_CHECK_NAME is set, that check's conclusion wins (teams pick which check gates delivery); else aggregate. */
 async function ciStatus(headSha: string): Promise<DeliveryItem["ciStatus"]> {
+  const { gh, owner, repo } = await ctx();
   const r = await gh.checks.listForRef({ owner, repo, ref: headSha, per_page: 100 });
   let runs = r.data.check_runs;
   if (!runs.length) return "none";
@@ -41,6 +47,7 @@ async function ciStatus(headSha: string): Promise<DeliveryItem["ciStatus"]> {
 }
 
 export async function fetchSprintModel(): Promise<SprintModel> {
+  const { gh, owner, repo } = await ctx();
   // Sprint = nearest-due open milestone (DECISIONS §17)
   const ms = await gh.issues.listMilestones({ owner, repo, state: "open", sort: "due_on", direction: "asc" });
   const m = ms.data[0];
@@ -119,6 +126,7 @@ export async function fetchSprintModel(): Promise<SprintModel> {
 
 /** D19 enrichment tool: compact recent timeline of an issue/PR for root-cause reasoning. */
 export async function getItemTimeline(itemNumber: number): Promise<string[]> {
+  const { gh, owner, repo } = await ctx();
   const ev = await gh.issues.listEventsForTimeline({ owner, repo, issue_number: itemNumber, per_page: 40 });
   return ev.data.slice(-15).map((e: any) => {
     const who = e.actor?.login ?? e.user?.login ?? "";
@@ -130,16 +138,19 @@ export async function getItemTimeline(itemNumber: number): Promise<string[]> {
 
 // ---- closed-loop writes ------------------------------------------------------
 export async function addLabel(itemNumber: number, label: string) {
+  const { gh, owner, repo } = await ctx();
   await gh.issues.addLabels({ owner, repo, issue_number: itemNumber, labels: [label] });
 }
 /** Marker lets `pnpm reset:actions` find and delete exactly Cadence's comments. */
 const CADENCE_MARKER = "<!-- cadence-bot -->";
 export async function comment(itemNumber: number, body: string) {
+  const { gh, owner, repo } = await ctx();
   await gh.issues.createComment({ owner, repo, issue_number: itemNumber, body: `${body}\n\n${CADENCE_MARKER}\n— _Cadence · delivery bot_` });
 }
 
 /** Undo everything a real run wrote: remove at-risk labels + delete Cadence's comments. Keeps the repo demo-fresh. */
 export async function undoActions(): Promise<string[]> {
+  const { gh, owner, repo } = await ctx();
   const log: string[] = [];
   const issues = await gh.paginate(gh.issues.listForRepo, { owner, repo, state: "all", per_page: 100 });
   for (const it of issues)

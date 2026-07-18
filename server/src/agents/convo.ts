@@ -13,7 +13,7 @@ import { z } from "zod";
 import { llm, modelBrief } from "./pipeline.js";
 import { runScan } from "../scan.js";
 import { getItemTimeline } from "../github.js";
-import { autonomy, executeOne } from "../actions.js";
+import { autonomyMode, executeOne } from "../actions.js";
 import { store, type ConvoMessage } from "../store.js";
 
 type Proposal = NonNullable<ConvoMessage["proposedAction"]>;
@@ -35,7 +35,7 @@ export async function runConvo(convoId: string, userText: string): Promise<Convo
   const lastProposal = [...history].reverse().find((m) => m.proposedAction && !m.executed);
   if (lastProposal && AFFIRMATIVE.test(text)) {
     let reply: string;
-    if (autonomy() === "observe") {
+    if ((await autonomyMode()) === "observe") {
       reply = "I'm in observe mode, so I can't apply actions — switch to copilot or autopilot and ask again.";
     } else {
       const p = lastProposal.proposedAction!;

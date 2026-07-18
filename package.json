@@ -10,9 +10,13 @@
     "pipeline:dry": "tsx server/src/pipeline-cli.ts",
     "reset:actions": "tsx server/src/reset-cli.ts",
     "dev": "tsx watch server/src/index.ts",
+    "start": "tsx server/src/index.ts",
+    "web": "pnpm --dir web dev",
+    "web:build": "pnpm --dir web build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/static": "^10.1.0",
     "@langchain/core": "^1.2.3",
     "@langchain/google-genai": "^2.2.0",
     "@langchain/langgraph": "^1.4.8",

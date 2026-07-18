@@ -6,7 +6,7 @@
  */
 import { SocketModeClient } from "@slack/socket-mode";
 import { runConvo } from "./agents/convo.js";
-import { slackWeb } from "./slack.js";
+import { getSlackWeb } from "./slack.js";
 
 interface SlackEvent {
   type: string;
@@ -21,11 +21,11 @@ interface SlackEvent {
 
 export async function startSlackListener(): Promise<void> {
   const appToken = process.env.SLACK_APP_TOKEN;
-  if (!appToken || !slackWeb) {
+  const web = await getSlackWeb();
+  if (!appToken || !web) {
     console.warn("⚠ SLACK_APP_TOKEN missing — Slack conversational listener disabled.");
     return;
   }
-  const web = slackWeb; // non-null after the guard; closures below keep the narrowing
   const me = (await web.auth.test()).user_id as string;
   const smc = new SocketModeClient({ appToken });
 

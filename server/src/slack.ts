@@ -1,20 +1,27 @@
 /**
  * Slack surface (DECISIONS §6, §13): report to the channel, DMs to mapped owners.
- * Identity map: TEAM_MAP env JSON ({"githubLogin":"U012345"}) until the wizard
- * populates Redis. No Slack env → warn-and-skip so the pipeline never crashes.
+ * Workspace-driven (C1): tokens/channel/teamMap come from getWorkspace()
+ * (wizard-connected config wins over env). No Slack config → warn-and-skip so
+ * the pipeline never crashes.
  */
 import { WebClient } from "@slack/web-api";
+import { getWorkspace } from "./workspace.js";
 
-const token = process.env.SLACK_BOT_TOKEN;
-const channel = process.env.SLACK_CHANNEL_ID ?? "";
-const client = token ? new WebClient(token) : null;
-if (!client) console.warn("⚠ SLACK_BOT_TOKEN missing — Slack posts will be skipped.");
-/** Shared Web client for other modules (listener); null when Slack isn't configured. */
-export const slackWeb = client;
+let cached: { token: string; client: WebClient } | null = null;
+async function ctx(): Promise<{ client: WebClient | null; channel: string; teamMap: Record<string, string> }> {
+  const ws = await getWorkspace();
+  if (!ws.slackBotToken) return { client: null, channel: "", teamMap: {} };
+  if (cached?.token !== ws.slackBotToken) cached = { token: ws.slackBotToken, client: new WebClient(ws.slackBotToken) };
+  return { client: cached.client, channel: ws.slackChannelId ?? "", teamMap: ws.teamMap };
+}
 
-const teamMap: Record<string, string> = JSON.parse(process.env.TEAM_MAP ?? "{}");
+/** Web client for other modules (listener); null when Slack isn't configured. */
+export async function getSlackWeb(): Promise<WebClient | null> {
+  return (await ctx()).client;
+}
 
 export async function postReport(text: string): Promise<string> {
+  const { client, channel } = await ctx();
   if (!client || !channel) return "skipped (no slack config)";
   await client.chat.postMessage({ channel, text, unfurl_links: false });
   return `posted to ${channel}`;
@@ -22,6 +29,7 @@ export async function postReport(text: string): Promise<string> {
 
 /** Undo: delete recent messages Cadence's bot posted to the channel (keeps Slack demo-fresh). */
 export async function deleteRecentBotMessages(): Promise<string> {
+  const { client, channel } = await ctx();
   if (!client || !channel) return "skipped (no slack config)";
   const me = await client.auth.test();
   const hist = await client.conversations.history({ channel, limit: 50 });
@@ -36,13 +44,12 @@ export async function deleteRecentBotMessages(): Promise<string> {
 
 /** DM the mapped Slack user; unmapped → graceful channel mention (never dropped, PRODUCT_FLOWS §4). */
 export async function notifyOwner(githubLogin: string, text: string): Promise<string> {
+  const { client, channel, teamMap } = await ctx();
   if (!client) return "skipped (no slack config)";
   const slackId = teamMap[githubLogin];
   if (slackId) {
     // U/W = user id → open the DM; D = already a DM channel id → post directly
-    const dmChannel = slackId.startsWith("D")
-      ? slackId
-      : (await client.conversations.open({ users: slackId })).channel!.id!;
+    const dmChannel = slackId.startsWith("D") ? slackId : (await client.conversations.open({ users: slackId })).channel!.id!;
     await client.chat.postMessage({ channel: dmChannel, text });
     return `dm → ${githubLogin}`;
   }

@@ -8,9 +8,11 @@ import { ActionPlan } from "./model.js";
 import { addLabel, comment } from "./github.js";
 import { notifyOwner, postReport } from "./slack.js";
 import { PendingAction, store } from "./store.js";
+import { getWorkspace } from "./workspace.js";
 
 export type Autonomy = "observe" | "copilot" | "autopilot";
-export const autonomy = (): Autonomy => (process.env.AUTONOMY as Autonomy) ?? "copilot";
+/** Workspace-backed autonomy dial (env fallback inside getWorkspace). */
+export const autonomyMode = async (): Promise<Autonomy> => (await getWorkspace()).autonomy;
 
 let seq = 0;
 const pendingFrom = (a: Omit<PendingAction, "id" | "createdAt" | "status">): PendingAction => ({
@@ -33,7 +35,8 @@ export async function executeOne(a: PendingAction): Promise<string> {
 }
 
 /** Returns a human-readable log of what was applied vs queued. */
-export async function executePlan(plan: ActionPlan, mode: Autonomy = autonomy()): Promise<string[]> {
+export async function executePlan(plan: ActionPlan, mode?: Autonomy): Promise<string[]> {
+  mode ??= await autonomyMode();
   const log: string[] = [];
   const queue: PendingAction[] = [];
 

@@ -24,7 +24,7 @@
 
 ---
 
-## Phase 2 — Agent pipeline & closed-loop actions ⭐ *the graded property*
+## Phase 2 — Agent pipeline & closed-loop actions ⭐ *the graded property* — ✅ DONE (verified live: Slack report + owner DM; GitHub writes exercised via approve flow)
 
 **Goal:** the LangGraph pipeline reasons over the scored model and **acts on GitHub and Slack**.
 
@@ -40,7 +40,7 @@
 
 ---
 
-## Phase 3 — Approval queue & conversational agent
+## Phase 3 — Approval queue & conversational agent — ✅ DONE (verified live in Slack: @Cadence Q&A in-thread + "do it" → real DM; web chat via /api/chat; convos persisted in Upstash)
 
 **Goal:** the human-in-the-loop layer: drafted actions that survive restarts, and a Q&A agent that acts from its replies.
 
@@ -57,7 +57,7 @@
 
 ---
 
-## Phase 4 — Frontend, deploy & submission
+## Phase 4 — Frontend, deploy & submission — 🔶 dashboard ✅ built & visually verified (web/: wizard, overview, actions, chat, settings — "Night Shift" design, DESIGN.md); remaining: Koyeb deploy, cron, video, submit
 
 **Goal:** the demoable surface + the proactive story + the package that gets submitted.
 

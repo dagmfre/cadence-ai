@@ -2,10 +2,14 @@
 import { config } from "dotenv";
 config();
 import Fastify from "fastify";
+import path from "node:path";
+import { existsSync } from "node:fs";
 import { runScan } from "./scan.js";
 import { store } from "./store.js";
+import { registerWizard } from "./wizard.js";
 
 const app = Fastify({ logger: { level: "warn" } });
+registerWizard(app);
 
 app.get("/api/scan", async () => {
   const scan = await runScan();
@@ -72,6 +76,16 @@ app.post("/api/chat/confirm", async () => {
   const { runConvo } = await import("./agents/convo.js");
   return runConvo("web", "do it");
 });
+
+// Serve the built dashboard (web/dist) when present — one deployable service.
+const dist = path.resolve(import.meta.dirname, "../../web/dist");
+if (existsSync(dist)) {
+  const { default: fastifyStatic } = await import("@fastify/static");
+  await app.register(fastifyStatic, { root: dist });
+  app.setNotFoundHandler((req, reply) =>
+    req.method === "GET" && !req.url.startsWith("/api") ? reply.sendFile("index.html") : reply.code(404).send({ error: "not found" }),
+  );
+}
 
 const port = Number(process.env.PORT ?? 8787);
 app.listen({ port, host: "0.0.0.0" }).then(() => console.log(`Cadence server on :${port}`));

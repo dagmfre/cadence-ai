@@ -55,6 +55,13 @@ async function set(key: string, value: unknown): Promise<void> {
 }
 
 export const store = {
+  /** Raw workspace config record; workspace.ts owns the schema (avoids an import cycle). */
+  async getConfig(): Promise<unknown> {
+    return get<unknown>(`${WS}:config`);
+  },
+  async setConfig(config: unknown) {
+    await set(`${WS}:config`, config);
+  },
   async getPending(): Promise<PendingAction[]> {
     return (await get<PendingAction[]>(`${WS}:pending`)) ?? [];
   },

@@ -209,6 +209,13 @@ message(s)`. Now the repo + Slack look untouched — ready for the next take.
 
 ---
 
+## 5b. The dashboard (Phase 4)
+
+- **Dev:** two terminals — `pnpm dev` (server :8787) + `pnpm web` (Vite :5173, proxies /api).
+- **Prod-like (what Koyeb runs):** `pnpm web:build` then `pnpm start` — the server serves `web/dist` itself, everything on `http://localhost:8787`.
+- Screens: `/wizard` (connect flow — resumes at the first incomplete step), `/` Overview (RAG banner + risks + board + items), `/actions` (pending approvals + Run scan now + history), `/chat` (same agent as Slack), `/settings` (autonomy + roster).
+- The chat and Slack threads share the same agent; conversations persist in Upstash across restarts.
+
 ## 6. Troubleshooting
 
 | Symptom | Cause / fix |
