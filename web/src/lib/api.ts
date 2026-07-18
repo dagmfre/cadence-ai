@@ -101,6 +101,15 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Session-expiry handling. Without this every page invents its own misleading
+ * message ("Scan failed: Not signed in") instead of returning to the sign-in screen.
+ */
+let onUnauthorized: (() => void) | null = null;
+export const setUnauthorizedHandler = (fn: () => void) => {
+  onUnauthorized = fn;
+};
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, {
     ...init,
@@ -108,8 +117,13 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     headers: init?.body ? { "Content-Type": "application/json" } : undefined,
   });
   if (!r.ok) {
-    const body = (await r.json().catch(() => null)) as { error?: string } | null;
-    throw new ApiError(body?.error ?? `${r.status} ${r.statusText}`, r.status);
+    const body = (await r.json().catch(() => null)) as { error?: string; message?: string } | null;
+    if (r.status === 401 && !path.startsWith("/api/auth/")) onUnauthorized?.();
+    // Fastify's default shape puts the useful text in `message` and a generic
+    // status name in `error` — prefer whichever actually says something.
+    const generic = !body?.error || /^(internal server error|bad request|conflict|not found)$/i.test(body.error);
+    const message = (generic ? body?.message : body?.error) || body?.error || `${r.status} ${r.statusText}`;
+    throw new ApiError(message, r.status);
   }
   return r.json() as Promise<T>;
 }
@@ -128,7 +142,7 @@ export const api = {
   workspace: () => req<Workspace>("/api/workspace"),
   scan: () => req<ScanResult>("/api/scan"),
   runDailyScan: () =>
-    req<{ run: RunRecord; findings: RiskFinding[] }>("/run-daily-scan", post({ trigger: "manual" })),
+    req<{ run: RunRecord; findings: RiskFinding[]; actionPlan: unknown }>("/run-daily-scan", post({ trigger: "manual" })),
   pending: () => req<PendingAction[]>("/api/pending"),
   approve: (id: string) => req<{ applied: string }>(`/api/approve/${id}`, post()),
   dismiss: (id: string) => req<{ dismissed: string }>(`/api/dismiss/${id}`, post()),
@@ -146,7 +160,10 @@ export const api = {
       "/api/wizard/slack",
       post({ botToken, channelId }),
     ),
-  wizardRoster: () => req<{ roster: RosterEntry[]; slackMembers: { id: string; name: string; realName: string }[] }>("/api/wizard/roster"),
+  wizardRoster: () =>
+    req<{ roster: RosterEntry[]; slackMembers: { id: string; name: string; realName: string }[]; note?: string | null }>(
+      "/api/wizard/roster",
+    ),
   wizardComplete: (teamMap: Record<string, string>, autonomy: Workspace["autonomy"]) =>
     req<{ connected: true }>("/api/wizard/complete", post({ teamMap, autonomy })),
   settings: (patch: { autonomy?: Workspace["autonomy"]; teamMap?: Record<string, string> }) =>

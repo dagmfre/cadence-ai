@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { CheckCircle2, ExternalLink, RefreshCw, X } from "lucide-react";
 import { api, type DeliveryItem, type RiskFinding, type ScanResult } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -87,6 +88,7 @@ export default function Overview() {
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const query = (new URLSearchParams(useLocation().search).get("q") ?? "").toLowerCase();
 
   const load = () => {
     setLoading(true);
@@ -100,6 +102,12 @@ export default function Overview() {
   useEffect(load, []);
 
   const model = scan?.model;
+  const matches = (text: string) => !query || text.toLowerCase().includes(query);
+  const titleOf = (n: number) => model?.items.find((i) => i.number === n)?.title ?? "";
+  const filteredFindings = (scan?.findings ?? []).filter(
+    (f) => matches(f.category) || matches(f.reason) || matches(titleOf(f.itemNumber)) || matches(`#${f.itemNumber}`),
+  );
+  const openItems = (model?.items ?? []).filter((i) => i.state === "open" && (matches(i.title) || matches(`#${i.number}`)));
   const due = model?.sprint.dueOn
     ? new Date(model.sprint.dueOn).toLocaleDateString(undefined, { month: "short", day: "numeric" })
     : "no due date";
@@ -131,17 +139,35 @@ export default function Overview() {
       </div>
 
       {error && (
-        <p role="alert" className="rounded-[10px] border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          Scan failed: {error}. Check the GitHub connection in Settings, then rescan.
-        </p>
+        <div role="alert" className="rounded-[10px] border border-border bg-card px-5 py-6 text-center">
+          <p className="font-medium">Nothing to scan yet</p>
+          <p className="mx-auto mt-1.5 max-w-[60ch] text-sm text-muted-foreground">{error}</p>
+          <button
+            onClick={load}
+            className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <RefreshCw className="size-3.5" aria-hidden />
+            Scan again
+          </button>
+        </div>
       )}
 
       {loading && !scan && <LoadingView />}
 
+      {query && (
+        <p className="mb-4 flex items-center gap-2 rounded-[10px] border border-border bg-card px-4 py-2.5 text-sm text-muted-foreground">
+          Filtering by “<span className="text-foreground">{query}</span>”
+          <Link to="/" className="ml-auto inline-flex items-center gap-1 text-primary hover:underline">
+            <X className="size-3.5" aria-hidden />
+            Clear
+          </Link>
+        </p>
+      )}
+
       {scan && model && !error && (
         <div className={cn(loading && "opacity-60 transition-opacity")}>
           <RagBanner scan={scan} />
-          <Risks findings={scan.findings} items={model.items} />
+          <Risks findings={filteredFindings} items={model.items} query={query} />
 
           <h2 className="mb-3 mt-7 text-base font-medium leading-[22px]">Board</h2>
           <div className="flex gap-2.5 overflow-x-auto">
@@ -153,7 +179,7 @@ export default function Overview() {
             ))}
           </div>
 
-          <ItemsTable items={model.items.filter((i) => i.state === "open")} />
+          <ItemsTable items={openItems} />
         </div>
       )}
     </div>
@@ -196,21 +222,24 @@ function RagBanner({ scan }: { scan: ScanResult }) {
   );
 }
 
-function Risks({ findings, items }: { findings: RiskFinding[]; items: DeliveryItem[] }) {
+function Risks({ findings, items, query }: { findings: RiskFinding[]; items: DeliveryItem[]; query: string }) {
   return (
     <>
       <h2 className="mb-3 mt-7 text-base font-medium leading-[22px]">Risks ({findings.length})</h2>
       {findings.length === 0 ? (
         <div className="rounded-[10px] border border-border bg-card px-4 py-11 text-center">
           <CheckCircle2 className="mx-auto size-6 text-rag-green" strokeWidth={1.6} aria-hidden />
-          <p className="mb-1 mt-3 font-medium">No risks detected</p>
+          <p className="mb-1 mt-3 font-medium">{query ? "No risks match that search" : "No risks detected"}</p>
           <p className="mx-auto m-0 max-w-[46ch] text-[13px] text-muted-foreground">
-            Every open item is moving. Cadence keeps watching the repo, board and Slack and will surface risks the moment
-            they appear.
+            {query
+              ? "Try a different item number, title or category — or clear the filter above."
+              : "Every open item is moving. Cadence keeps watching the repo, board and Slack and will surface risks the moment they appear."}
           </p>
         </div>
       ) : (
-        <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
+        // min() lets a card shrink below 360px on narrow screens instead of
+        // forcing the whole page to scroll sideways.
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr))]">
           {findings.map((f) => {
             const sev = SEVERITY[f.severity];
             const item = items.find((i) => i.number === f.itemNumber);
@@ -257,8 +286,8 @@ function ItemsTable({ items }: { items: DeliveryItem[] }) {
   return (
     <>
       <h2 className="mb-3 mt-7 text-base font-medium leading-[22px]">Open items ({items.length})</h2>
-      <div className="overflow-hidden rounded-[10px] border border-border bg-card">
-        <table className="w-full border-collapse text-[13px]">
+      <div className="overflow-x-auto rounded-[10px] border border-border bg-card">
+        <table className="w-full min-w-[720px] border-collapse text-[13px]">
           <thead>
             <tr>
               <th className={cn(th, "w-16")}>#</th>
