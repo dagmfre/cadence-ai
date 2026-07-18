@@ -17,6 +17,8 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
   // Resume at the first incomplete step (OAuth round-trips reload the page)
   const initialStep = !workspace.githubConnected ? 0 : !workspace.repo ? 0 : !workspace.slackConnected ? 1 : 2;
   const [step, setStep] = useState(initialStep);
+  const [maxStep, setMaxStep] = useState(initialStep); // furthest step reached — bounds back-navigation
+  useEffect(() => setMaxStep((m) => Math.max(m, step)), [step]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -113,13 +115,39 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
         <span className="text-muted-foreground">· connect your workspace</span>
       </div>
 
+      {/* Steps you've already reached are clickable — setup is rarely linear and
+          people need to go back and change a repo, channel or mapping. */}
       <ol className="mb-6 flex gap-1.5" aria-label="Setup steps">
-        {STEPS.map((s, i) => (
-          <li key={s} className="flex-1">
-            <div className={cn("h-1 rounded-full", i <= step ? "bg-primary" : "bg-secondary")} />
-            <span className={cn("mt-1.5 block text-xs", i === step ? "text-foreground" : "text-muted-foreground")}>{s}</span>
-          </li>
-        ))}
+        {STEPS.map((s, i) => {
+          const reachable = i <= maxStep;
+          return (
+            <li key={s} className="flex-1">
+              <button
+                type="button"
+                disabled={!reachable}
+                onClick={() => {
+                  setError(null);
+                  setStep(i);
+                }}
+                aria-current={i === step ? "step" : undefined}
+                className={cn(
+                  "w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm",
+                  reachable ? "cursor-pointer" : "cursor-default",
+                )}
+              >
+                <span className={cn("block h-1 rounded-full transition-colors", i <= step ? "bg-primary" : "bg-secondary")} />
+                <span
+                  className={cn(
+                    "mt-1.5 block text-xs transition-colors",
+                    i === step ? "font-medium text-foreground" : reachable ? "text-muted-foreground hover:text-foreground" : "text-ink-faint",
+                  )}
+                >
+                  {s}
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ol>
 
       <Card>
@@ -341,9 +369,14 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
                   ))}
                 </div>
               )}
-              <Button className="w-full" onClick={() => setStep(3)}>
-                Continue
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setStep(1)}>
+                  Back
+                </Button>
+                <Button className="flex-1" onClick={() => setStep(3)}>
+                  Continue
+                </Button>
+              </div>
             </>
           )}
 
@@ -376,10 +409,15 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
                   </button>
                 ))}
               </div>
-              <Button className="w-full" disabled={busy} onClick={finish}>
-                {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-                {scanning ? "Running your first scan…" : "Finish & run first scan"}
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" disabled={busy} onClick={() => setStep(2)}>
+                  Back
+                </Button>
+                <Button className="flex-1" disabled={busy} onClick={finish}>
+                  {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+                  {scanning ? "Running your first scan…" : "Finish & run first scan"}
+                </Button>
+              </div>
             </>
           )}
         </CardContent>
