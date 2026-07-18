@@ -1,2 +1,10 @@
+# One workspace = one lockfile covering the server (root) and the dashboard (web/).
+# Koyeb's buildpack needs that single lockfile to install reproducibly.
+packages:
+  - web
+
+# esbuild (used by tsx at runtime and vite at build time) must be allowed to run
+# its install script — with this false, `pnpm start`/`pnpm dev` fail the
+# ERR_PNPM_IGNORED_BUILDS preflight.
 allowBuilds:
-  esbuild: false
+  esbuild: true
