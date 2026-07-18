@@ -49,7 +49,7 @@ export async function startSlackListener(): Promise<void> {
       threadTs = ev.thread_ts ?? ev.ts;
       const convoId = dm ? `im-${ev.channel}` : threadTs;
 
-      const { reply, proposedAction } = await runConvo(convoId, text);
+      const { reply, proposedAction } = await runConvo(convoId, text, dm ? "slack-dm" : "slack-thread");
       const suffix = proposedAction ? "\n\n_Reply “do it” to apply._" : "";
       await web.chat.postMessage({
         channel: ev.channel,

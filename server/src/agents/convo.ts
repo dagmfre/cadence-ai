@@ -17,10 +17,14 @@ import { runScan } from "../scan.js";
 import { getItemTimeline } from "../github.js";
 import { autonomyMode, executeOne } from "../actions.js";
 import { store, type ConvoMessage } from "../store.js";
+import { currentWorkspaceId } from "../context.js";
 
 type Proposal = NonNullable<ConvoMessage["proposedAction"]>;
 
 const AFFIRMATIVE = /^(y(es|ep|eah)?|do it|go ahead|approve|confirm|ok(ay)?|sure|ship it|apply|send it)\b/i;
+
+/** Enough rounds to read the scan plus a few item timelines before we stop paying. */
+const MAX_TOOL_ROUNDS = 6;
 
 const now = () => new Date().toISOString();
 
@@ -92,7 +96,8 @@ async function convo(convoId: string, userText: string): Promise<ConvoReply> {
       },
     ),
   ];
-  const bound = (await currentLlm()).bindTools!(tools);
+  const llm = await currentLlm();
+  const bound = llm.bindTools!(tools);
   // Union of tool signatures isn't callable — dispatch through one structural cast.
   const byName = new Map<string, { invoke: (args: unknown) => Promise<unknown> }>(
     tools.map((t) => [t.name, t as unknown as { invoke: (args: unknown) => Promise<unknown> }]),
@@ -113,7 +118,7 @@ async function convo(convoId: string, userText: string): Promise<ConvoReply> {
 
   const dbg = (...a: unknown[]) => process.env.CONVO_DEBUG && console.warn("[convo]", ...a);
   let response = await bound.invoke(messages);
-  for (let round = 0; round < 4 && response.tool_calls?.length; round++) {
+  for (let round = 0; round < MAX_TOOL_ROUNDS && response.tool_calls?.length; round++) {
     dbg(`round ${round}`, response.tool_calls.map((c) => c.name));
     messages.push(response);
     for (const call of response.tool_calls) {
@@ -124,6 +129,23 @@ async function convo(convoId: string, userText: string): Promise<ConvoReply> {
       messages.push(new ToolMessage({ content: String(result ?? "unknown tool"), tool_call_id: call.id ?? call.name }));
     }
     response = await bound.invoke(messages);
+  }
+
+  // The round budget guards against a runaway tool loop; it is not a reason to throw
+  // away what the model already gathered. Running out used to answer "try rephrasing"
+  // while a full sprint model and three item timelines sat unused in `messages`.
+  // Ask again with the tools removed, so it has to answer from the evidence it has.
+  if (!response.text) {
+    dbg("no text after tool loop — forcing a final answer without tools");
+    response = await llm.invoke([
+      ...messages,
+      {
+        role: "user",
+        content:
+          "Answer now, using only the evidence you have already gathered above. " +
+          "You cannot call any more tools. If something is genuinely missing, say what you do know and name what's missing.",
+      },
+    ]);
   }
 
   dbg("final", { text: response.text.slice(0, 80), toolCalls: response.tool_calls?.length, content: JSON.stringify(response.content).slice(0, 120) });
@@ -141,5 +163,21 @@ async function saveTurn(convoId: string, history: ConvoMessage[], userText: stri
   await store.trackConvoId(convoId);
 }
 
-/** Each turn is one LangSmith trace — the tool calls and model calls nest under it. */
-export const runConvo = traceable(convo, { name: "cadence-chat", run_type: "chain" });
+export type ConvoSurface = "web" | "slack-dm" | "slack-thread";
+
+/**
+ * Each turn is one LangSmith trace, with the tool calls and model calls nested under it.
+ * Tagged with where it came from: Slack and web run the identical agent, so without this
+ * the traces are indistinguishable and you can't tell which surface a bad answer came from.
+ *
+ * The surface is passed in rather than guessed from the convoId format — the caller knows
+ * it for certain, and an inference would mislabel silently the moment those ids change.
+ * Wrapped per call because the metadata differs per conversation.
+ */
+export function runConvo(convoId: string, userText: string, surface: ConvoSurface): Promise<ConvoReply> {
+  return traceable(convo, {
+    name: "cadence-chat",
+    run_type: "chain",
+    metadata: { surface, convoId, workspace: currentWorkspaceId() ?? "default" },
+  })(convoId, userText);
+}
