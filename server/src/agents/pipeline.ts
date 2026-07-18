@@ -7,7 +7,7 @@
  */
 import { StateGraph, StateSchema, START, END, type GraphNode } from "@langchain/langgraph";
 import { z } from "zod";
-import { ActionPlanSchema, RiskFindingSchema, ScanResult, ScanResultSchema } from "../model.js";
+import { ActionPlanSchema, RiskCategory, RiskFinding, RiskFindingSchema, ScanResult, ScanResultSchema } from "../model.js";
 import { getItemTimeline } from "../github.js";
 import { currentLlm } from "../llm.js";
 
@@ -37,33 +37,71 @@ export const modelBrief = (scan: ScanResult) =>
     1,
   );
 
+const key = (f: { itemNumber: number; category: RiskFinding["category"] }) => `${f.itemNumber}:${f.category}`;
+
+/**
+ * The findings a human would actually ask "why?" about — deduped and bounded. A scan
+ * routinely produces ~17 findings, and asking one call to write prose for all of them
+ * is what tipped the model into repeating itself: long structured generations are where
+ * flash models degenerate. Low-severity findings explain themselves.
+ */
+function worthExplaining(findings: RiskFinding[]): RiskFinding[] {
+  const seen = new Set<string>();
+  return findings
+    .filter((f) => {
+      if (f.severity === "low" || seen.has(key(f))) return false;
+      seen.add(key(f));
+      return true;
+    })
+    .slice(0, 8);
+}
+
+const EnrichmentSchema = z.object({
+  itemNumber: z.number(),
+  category: RiskCategory,
+  rootCause: z.string(),
+  recommendedAction: z.string(),
+});
+
 const riskNode: GraphNode<typeof State> = async (state) => {
   const { scan } = state;
-  // D19: fetch real timeline evidence for the distinct high/medium items (bounded to 4 calls)
-  const riskyItems = [...new Set(scan.findings.filter((f) => f.severity !== "low").map((f) => f.itemNumber))].slice(0, 4);
+  const targets = worthExplaining(scan.findings);
+  // D19: fetch real timeline evidence for the distinct risky items (bounded to 4 calls)
   const timelines: Record<number, string[]> = {};
-  for (const n of riskyItems) timelines[n] = await getItemTimeline(n).catch(() => []);
+  for (const n of [...new Set(targets.map((f) => f.itemNumber))].slice(0, 4))
+    timelines[n] = await getItemTimeline(n).catch(() => []);
 
   try {
     const llm = await currentLlm();
     const out = await llm
-      .withStructuredOutput(z.object({ findings: RiskFindingSchema.array() }))
+      .withStructuredOutput(z.object({ enrichments: EnrichmentSchema.array() }))
       .invoke([
         {
           role: "system",
           content:
             "You are the risk & root-cause analyst of Cadence, an Engineering Delivery Manager AI. " +
-            "You receive DETERMINISTIC risk findings (facts — keep every one, never invent or drop items) plus real GitHub timeline evidence. " +
-            "For each finding, fill rootCause (the specific underlying why, citing evidence like reviewer load, CI failures, staleness, board state) " +
-            "and recommendedAction (one concrete, immediately executable next step naming people/items). Keep reason/category/severity/itemNumber unchanged. " +
-            "Write rootCause and recommendedAction as ONE short sentence each — never repeat a sentence, never restate the same point twice.",
+            "You receive risk findings that were computed deterministically, plus real GitHub timeline evidence. " +
+            "For each finding you are given, return ONE enrichment naming its itemNumber and category, plus:\n" +
+            "- rootCause: the specific underlying why, citing evidence (reviewer load, CI failures, staleness, board state).\n" +
+            "- recommendedAction: one concrete next step naming the person and item.\n" +
+            "Each must be a SINGLE short sentence. Never repeat a sentence or restate a point. " +
+            "Return an enrichment only for the findings listed — do not invent items.",
         },
         {
           role: "user",
-          content: `SPRINT MODEL + DETERMINISTIC FINDINGS:\n${modelBrief(scan)}\n\nTIMELINE EVIDENCE (tool: get_item_timeline):\n${JSON.stringify(timelines, null, 1)}`,
+          content: `FINDINGS TO EXPLAIN:\n${JSON.stringify(targets, null, 1)}\n\nSPRINT MODEL:\n${modelBrief(scan)}\n\nTIMELINE EVIDENCE:\n${JSON.stringify(timelines, null, 1)}`,
         },
       ]);
-    return { enrichedFindings: out.findings };
+
+    // Merge by key, so the model annotates the findings but can never drop, reorder or
+    // invent one. That used to be a prompt instruction; it is now a property of the code.
+    const byKey = new Map(out.enrichments.map((e) => [key(e), e]));
+    return {
+      enrichedFindings: scan.findings.map((f) => {
+        const e = byKey.get(key(f));
+        return e ? { ...f, rootCause: e.rootCause, recommendedAction: e.recommendedAction } : f;
+      }),
+    };
   } catch (e) {
     // Enrichment is additive: the deterministic findings are already complete and correct,
     // so a model that loops or truncates costs us the "why", not the whole run.
