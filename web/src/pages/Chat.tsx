@@ -3,6 +3,7 @@ import { Check, CornerDownLeft, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { LogoMark } from "@/components/Logo";
+import { ModelPicker } from "@/components/ModelPicker";
 import { api, type ConvoMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -101,11 +102,14 @@ export default function Chat() {
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col">
-      <header>
-        <h1 className="text-xl font-semibold leading-[26px]">Chat</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
-          Ask about the sprint — answers cite real items. Same agent as @Cadence in Slack.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold leading-[26px]">Chat</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            Ask about the sprint — answers cite real items. Same agent as @Cadence in Slack.
+          </p>
+        </div>
+        <ModelPicker disabled={thinking} />
       </header>
 
       <div className="mt-5 flex-1 space-y-4 overflow-y-auto pr-1" role="log" aria-label="Conversation" aria-busy={thinking}>

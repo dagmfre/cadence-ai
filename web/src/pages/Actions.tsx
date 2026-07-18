@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Check, Loader2, MessageSquareText, Play, Send, Tag, X } from "lucide-react";
+import { ModelPicker } from "@/components/ModelPicker";
 import { api, followScan, ragColor, type PendingAction, type RunRecord } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -97,14 +98,17 @@ export default function Actions({ onPendingChange }: { onPendingChange?: (n: num
             The closed loop: review what Cadence drafted, apply what you approve.
           </p>
         </div>
-        <button
-          onClick={() => runScan()}
-          disabled={scanning}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-80"
-        >
-          {scanning ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Play className="size-4" aria-hidden />}
-          {scanning ? "Running scan…" : "Run scan now"}
-        </button>
+        <div className="flex items-center gap-2">
+          <ModelPicker disabled={scanning} />
+          <button
+            onClick={() => runScan()}
+            disabled={scanning}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-80"
+          >
+            {scanning ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Play className="size-4" aria-hidden />}
+            {scanning ? "Running scan…" : "Run scan now"}
+          </button>
+        </div>
       </header>
 
       {notice && (

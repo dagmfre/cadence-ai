@@ -19,6 +19,8 @@ export const WorkspaceConfigSchema = z.object({
   slackChannelId: z.string(),
   teamMap: z.record(z.string(), z.string()),
   autonomy: AutonomySchema,
+  /** Validated against the registry on read — an unknown id falls back to the default. */
+  model: z.string(),
 }).partial();
 export type WorkspaceConfig = z.infer<typeof WorkspaceConfigSchema>;
 
@@ -33,6 +35,8 @@ export interface Workspace {
   slackChannelId?: string;
   teamMap: Record<string, string>;
   autonomy: z.infer<typeof AutonomySchema>;
+  /** undefined = "whatever the deployment defaults to"; resolved in llm.ts. */
+  model?: string;
 }
 
 const cache = new Map<string, { ws: Workspace; at: number }>();
@@ -78,6 +82,7 @@ export async function getWorkspace(): Promise<Workspace> {
     slackChannelId: saved.slackChannelId ?? e.SLACK_CHANNEL_ID,
     teamMap: saved.teamMap ?? parseTeamMap(e.TEAM_MAP),
     autonomy: saved.autonomy ?? AutonomySchema.catch("copilot").parse(e.AUTONOMY),
+    model: saved.model ?? e.CADENCE_MODEL ?? e.GEMINI_MODEL,
   };
   cache.set(key, { ws, at: Date.now() });
   return ws;

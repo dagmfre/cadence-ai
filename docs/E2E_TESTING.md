@@ -245,7 +245,7 @@ Build: `pnpm install && pnpm --dir web build` · Run: `pnpm start`
 | `NODE_ENV=production` | Makes the session cookie `Secure`. |
 | `PORT` | Must match the port Koyeb exposes (e.g. `8000`). |
 | `CRON_SECRET` | Lets the scheduler call `/run-daily-scan`; it can't sign in. |
-| `GEMINI_API_KEY` | The pipeline and chat. |
+| `GEMINI_API_KEY` and/or `ANTHROPIC_API_KEY` | The pipeline and chat. Set either or both — the model picker on Actions/Chat lists only providers you have a key for. `CADENCE_MODEL` sets the default. |
 | `GITHUB_OAUTH_CLIENT_ID` / `_SECRET` | The wizard's "Sign in with GitHub". Callback must be `https://<your-app>/auth/github/callback`. |
 | `GITHUB_TOKEN_CLASSIC`, `TARGET_REPO`, `SLACK_*`, `TEAM_MAP`, `AUTONOMY` | The headless workspace the cron scan and the `@Cadence` Slack listener act on. |
 | `LANGSMITH_TRACING` / `_API_KEY` / `_PROJECT` | Optional. Traces every run and chat turn — see §5d-bis. |
@@ -319,6 +319,8 @@ pipeline runs exactly as before.
 | `502` / `504` from "Run scan now" | Fixed: a run takes ~3 min, longer than Koyeb's ~60s edge timeout, so the server now acknowledges with `202` and the dashboard polls `/api/scan-status`. If you still see it, you're on a build from before that change. |
 | The Run-scan button spins forever | The dashboard gives up after 10 min with a message; the run itself keeps going and lands in run history. Check the service logs for the real failure. |
 | No traces in LangSmith | The boot log says which mode it's in. `LANGSMITH_TRACING` must be exactly `true` **and** `LANGSMITH_API_KEY` set; non-US accounts also need `LANGSMITH_ENDPOINT`. |
+| Findings show no root cause / "the analysis model was unavailable" | The model failed (rate limit, or a repetition loop that blew the output cap) and the run degraded to the deterministic scan instead of dying. The numbers and findings are still real. Check the server log for `[pipeline] … node degraded`, then re-run — or switch model in the picker. |
+| The model picker doesn't appear | It hides when fewer than two models are available. Add the second provider's API key. |
 | Cron returns 401 | `CRON_SECRET` isn't set on the host, or the scheduler isn't sending it (see §5d). |
 
 ---

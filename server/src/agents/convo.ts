@@ -11,7 +11,8 @@ import { traceable } from "langsmith/traceable";
 import { tool } from "@langchain/core/tools";
 import { ToolMessage, type BaseMessageLike } from "@langchain/core/messages";
 import { z } from "zod";
-import { llm, modelBrief } from "./pipeline.js";
+import { modelBrief } from "./pipeline.js";
+import { currentLlm } from "../llm.js";
 import { runScan } from "../scan.js";
 import { getItemTimeline } from "../github.js";
 import { autonomyMode, executeOne } from "../actions.js";
@@ -91,7 +92,7 @@ async function convo(convoId: string, userText: string): Promise<ConvoReply> {
       },
     ),
   ];
-  const bound = llm.bindTools(tools);
+  const bound = (await currentLlm()).bindTools!(tools);
   // Union of tool signatures isn't callable — dispatch through one structural cast.
   const byName = new Map<string, { invoke: (args: unknown) => Promise<unknown> }>(
     tools.map((t) => [t.name, t as unknown as { invoke: (args: unknown) => Promise<unknown> }]),

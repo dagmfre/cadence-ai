@@ -67,6 +67,13 @@ export interface RunRecord {
   applied: string[];
 }
 
+export interface ModelChoice {
+  id: string;
+  label: string;
+  provider: string;
+  note: string;
+}
+
 export interface ScanStatus {
   running: boolean;
   startedAt: string | null;
@@ -173,8 +180,9 @@ export const api = {
     ),
   wizardComplete: (teamMap: Record<string, string>, autonomy: Workspace["autonomy"]) =>
     req<{ connected: true }>("/api/wizard/complete", post({ teamMap, autonomy })),
-  settings: (patch: { autonomy?: Workspace["autonomy"]; teamMap?: Record<string, string> }) =>
+  settings: (patch: { autonomy?: Workspace["autonomy"]; teamMap?: Record<string, string>; model?: string }) =>
     req<{ saved: true }>("/api/settings", post(patch)),
+  models: () => req<{ models: ModelChoice[]; current: string }>("/api/models"),
 };
 
 /**

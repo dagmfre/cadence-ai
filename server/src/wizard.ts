@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { getWorkspace, saveWorkspace, AutonomySchema, WorkspaceConfigSchema } from "./workspace.js";
 import { fetchSprintModel, NotConnectedError } from "./github.js";
+import { availableModels, resolveModel } from "./llm.js";
 
 /** OAuth CSRF nonces → expiry. In-memory: the app assumes a single instance. */
 const states = new Map<string, number>();
@@ -188,9 +189,16 @@ export function registerWizard(app: FastifyInstance): void {
   });
 
   app.post("/api/settings", async (req, reply) => {
-    const body = WorkspaceConfigSchema.pick({ teamMap: true, autonomy: true }).safeParse(req.body);
-    if (!body.success) return reply.code(400).send({ error: `invalid: expected teamMap/autonomy (${AutonomySchema.options.join("|")})` });
-    await saveWorkspace(body.data);
+    const body = WorkspaceConfigSchema.pick({ teamMap: true, autonomy: true, model: true }).safeParse(req.body);
+    if (!body.success) return reply.code(400).send({ error: `invalid: expected teamMap/autonomy (${AutonomySchema.options.join("|")})/model` });
+    // Pin what we'll actually use, so a stale id can't silently become the default later.
+    await saveWorkspace(body.data.model ? { ...body.data, model: resolveModel(body.data.model) } : body.data);
     return { saved: true };
   });
+
+  /** Only models this deployment has a key for, plus the one in effect. */
+  app.get("/api/models", async () => ({
+    models: availableModels(),
+    current: resolveModel((await getWorkspace()).model),
+  }));
 }
