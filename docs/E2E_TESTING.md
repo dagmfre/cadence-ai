@@ -248,6 +248,7 @@ Build: `pnpm install && pnpm --dir web build` · Run: `pnpm start`
 | `GEMINI_API_KEY` | The pipeline and chat. |
 | `GITHUB_OAUTH_CLIENT_ID` / `_SECRET` | The wizard's "Sign in with GitHub". Callback must be `https://<your-app>/auth/github/callback`. |
 | `GITHUB_TOKEN_CLASSIC`, `TARGET_REPO`, `SLACK_*`, `TEAM_MAP`, `AUTONOMY` | The headless workspace the cron scan and the `@Cadence` Slack listener act on. |
+| `LANGSMITH_TRACING` / `_API_KEY` / `_PROJECT` | Optional. Traces every run and chat turn — see §5d-bis. |
 
 Daily trigger (cron-job.org), preferring the header form:
 
@@ -260,10 +261,39 @@ Body:   {"trigger":"daily"}
 `?key=<CRON_SECRET>` also works if your scheduler only accepts a URL — note that a
 query string lands in access logs, so treat those logs as secret.
 
+## 5d-bis. LangSmith tracing (every run is a trace)
+
+Set three variables (locally in `.env`, in production as Koyeb env vars):
+
+```
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_...        # smith.langchain.com → Settings → API keys
+LANGSMITH_PROJECT=cadence
+```
+
+On boot the server prints which mode it's in:
+
+```
+LangSmith tracing on → project "cadence"
+```
+
+What you get in the LangSmith UI, per project:
+
+| Trace name | When | What's nested inside |
+|---|---|---|
+| `cadence-run` | every scan (cron **and** "Run scan now") | `scan` (deterministic GitHub read + scoring) → the LangGraph pipeline nodes (risk/root-cause, forecast narrative, action plan) with their Gemini calls → `execute-plan` (what was actually written) |
+| `cadence-chat` | every chat turn, web **and** Slack | the tool-calling loop: `get_latest_scan`, `get_item_timeline`, `propose_action`, and each Gemini call |
+
+Each `cadence-run` trace carries `trigger` (`daily`/`manual`) and `workspace` metadata,
+so you can tell a cron run from a demo click and one account's runs from another's.
+Tracing is entirely opt-in: with `LANGSMITH_TRACING` unset the SDK is inert and the
+pipeline runs exactly as before.
+
 ## 5e. Known limitations (deliberate, documented)
 
-- **Single instance.** The OAuth-state set and the login rate limiter are in-memory,
-  so running two replicas would break OAuth and weaken throttling.
+- **Single instance.** The OAuth-state set, the login rate limiter and the
+  in-flight-scan registry are in-memory, so running two replicas would break OAuth,
+  weaken throttling, and let two replicas each start their own scan.
 - **Slack `@Cadence` answers for the headless workspace only.** Per-account Slack
   routing needs a Slack-team → account mapping; the web app is fully per-account.
 - **Concurrent writes can drop an item.** Approving an action while a scan is
@@ -286,6 +316,9 @@ query string lands in access logs, so treat those logs as secret.
 | “No open milestone” on the dashboard | Expected for a repo with no milestone. Create one with a due date and add the sprint's issues, then Scan again. |
 | Signed out unexpectedly | The session cookie lasts 30 days; it is also dropped whenever the store restarts without Upstash configured. |
 | `429 Too many attempts` on sign-in | The per-IP limiter (10 tries / 5 min). Wait it out. |
+| `502` / `504` from "Run scan now" | Fixed: a run takes ~3 min, longer than Koyeb's ~60s edge timeout, so the server now acknowledges with `202` and the dashboard polls `/api/scan-status`. If you still see it, you're on a build from before that change. |
+| The Run-scan button spins forever | The dashboard gives up after 10 min with a message; the run itself keeps going and lands in run history. Check the service logs for the real failure. |
+| No traces in LangSmith | The boot log says which mode it's in. `LANGSMITH_TRACING` must be exactly `true` **and** `LANGSMITH_API_KEY` set; non-US accounts also need `LANGSMITH_ENDPOINT`. |
 | Cron returns 401 | `CRON_SECRET` isn't set on the host, or the scheduler isn't sending it (see §5d). |
 
 ---

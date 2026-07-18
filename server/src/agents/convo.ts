@@ -7,6 +7,7 @@
  * Grounded: LangChain docs — bindTools + tool(); Gemini forbids z.record/empty
  * tool schemas, so every schema has explicit properties.
  */
+import { traceable } from "langsmith/traceable";
 import { tool } from "@langchain/core/tools";
 import { ToolMessage, type BaseMessageLike } from "@langchain/core/messages";
 import { z } from "zod";
@@ -27,7 +28,7 @@ export interface ConvoReply {
   proposedAction?: Proposal;
 }
 
-export async function runConvo(convoId: string, userText: string): Promise<ConvoReply> {
+async function convo(convoId: string, userText: string): Promise<ConvoReply> {
   const history = await store.getConvo(convoId);
   const text = userText.trim();
 
@@ -138,3 +139,6 @@ async function saveTurn(convoId: string, history: ConvoMessage[], userText: stri
   await store.setConvo(convoId, history);
   await store.trackConvoId(convoId);
 }
+
+/** Each turn is one LangSmith trace — the tool calls and model calls nest under it. */
+export const runConvo = traceable(convo, { name: "cadence-chat", run_type: "chain" });
