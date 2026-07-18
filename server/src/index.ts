@@ -4,8 +4,10 @@ config();
 import Fastify from "fastify";
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { traceable } from "langsmith/traceable";
 import { runScan } from "./scan.js";
 import { store } from "./store.js";
+import { currentWorkspaceId } from "./context.js";
 import { registerWizard } from "./wizard.js";
 import { registerAuth, isCronRequest } from "./auth.js";
 import fastifyCookie from "@fastify/cookie";
@@ -42,11 +44,13 @@ async function closedLoop(trigger: "daily" | "manual") {
   const { runPipeline } = await import("./agents/pipeline.js");
   const { executePlan } = await import("./actions.js");
 
-  const scan = await runScan();
+  // The deterministic ends of the loop get their own spans so a LangSmith trace
+  // shows the whole story: what we read, what the agents decided, what we did.
+  const scan = await traceable(runScan, { name: "scan", run_type: "tool" })();
   await store.setLastScan(scan);
   const result = await runPipeline(scan);
   await store.setEnrichment(result.findings); // /api/scan merges these back in
-  const applied = await executePlan(result.actionPlan);
+  const applied = await traceable(executePlan, { name: "execute-plan", run_type: "tool" })(result.actionPlan);
 
   const run = {
     id: `run-${Date.now()}`,
@@ -61,17 +65,53 @@ async function closedLoop(trigger: "daily" | "manual") {
   return { run, findings: result.findings, actionPlan: result.actionPlan };
 }
 
+/**
+ * Nobody can hold a request open for the length of a run: cron-job.org caps at 30s
+ * and Koyeb's edge returns 504 around 60s, while the pipeline takes 1-4 minutes.
+ * So every trigger starts the loop in the background and polls `/api/scan-status`.
+ * In-memory and per-workspace — the single-instance assumption already documented.
+ */
+type ScanState = { startedAt: string; trigger: "daily" | "manual"; error?: string };
+const scans = new Map<string, ScanState>();
+const scanKey = () => currentWorkspaceId() ?? "default";
+
+const STALE_AFTER = 15 * 60_000; // a real run takes ~3 min; well past that it's abandoned
+
+function startScan(trigger: "daily" | "manual"): ScanState {
+  const key = scanKey();
+  const running = scans.get(key);
+  // A second click joins the first — unless the first hung, which must not lock the
+  // workspace out of scanning until the next restart.
+  if (running && !running.error && Date.now() - Date.parse(running.startedAt) < STALE_AFTER) return running;
+
+  const state: ScanState = { startedAt: new Date().toISOString(), trigger };
+  scans.set(key, state);
+  // One LangSmith trace per run; the LangGraph nodes and model calls nest under it.
+  void traceable(closedLoop, { name: "cadence-run", run_type: "chain", metadata: { trigger, workspace: key } })(trigger)
+    .then(() => scans.delete(key))
+    .catch((e: Error) => {
+      app.log.error(e, "scan failed");
+      scans.set(key, { ...state, error: e.message || "The scan failed." });
+    });
+  return state;
+}
+
 app.post("/run-daily-scan", async (req, reply) => {
-  const trigger = ((req.body as { trigger?: string } | undefined)?.trigger ?? "manual") as "daily" | "manual";
+  const body = (req.body ?? {}) as { trigger?: string };
+  const trigger = isCronRequest(req) ? "daily" : ((body.trigger ?? "manual") as "daily" | "manual");
+  const { startedAt } = startScan(trigger);
+  return reply.code(202).send({ accepted: true, startedAt, note: "Scan started — poll /api/scan-status." });
+});
 
-  // A scheduler can't wait 1-4 minutes for the pipeline — cron-job.org caps at 30s
-  // and disables jobs that keep timing out. Acknowledge now, work in the background.
-  if (isCronRequest(req)) {
-    void closedLoop("daily").catch((e) => app.log.error(e, "scheduled scan failed"));
-    return reply.code(202).send({ accepted: true, note: "Scan started — results land in run history." });
-  }
-
-  return closedLoop(trigger); // dashboard waits, it wants the result
+/** How the dashboard follows a run it can't wait for. */
+app.get("/api/scan-status", async () => {
+  const state = scans.get(scanKey());
+  return {
+    running: !!state && !state.error,
+    startedAt: state?.startedAt ?? null,
+    error: state?.error ?? null,
+    lastRun: (await store.getRuns())[0] ?? null,
+  };
 });
 
 app.get("/api/pending", async () => store.getPending());
@@ -123,7 +163,14 @@ if (existsSync(dist)) {
 
 const port = Number(process.env.PORT ?? 8787);
 app.listen({ port, host: "0.0.0.0" }).then(
-  () => console.log(`Cadence server on :${port}`),
+  () => {
+    console.log(`Cadence server on :${port}`);
+    console.log(
+      process.env.LANGSMITH_TRACING === "true" && process.env.LANGSMITH_API_KEY
+        ? `LangSmith tracing on → project "${process.env.LANGSMITH_PROJECT ?? "default"}"`
+        : "LangSmith tracing off (set LANGSMITH_TRACING=true + LANGSMITH_API_KEY)",
+    );
+  },
   (err) => {
     console.error(`Cadence failed to start on :${port}`, err);
     process.exit(1);

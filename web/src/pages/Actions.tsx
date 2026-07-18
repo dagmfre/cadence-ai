@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Check, Loader2, MessageSquareText, Play, Send, Tag, X } from "lucide-react";
-import { api, ragColor, type PendingAction, type RunRecord } from "@/lib/api";
+import { api, followScan, ragColor, type PendingAction, type RunRecord } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /** Implements Actions.dc.html — the approve-and-apply surface. */
@@ -57,20 +57,36 @@ export default function Actions({ onPendingChange }: { onPendingChange?: (n: num
     load();
   };
 
-  const runScan = async () => {
+  const runScan = async (resume = false) => {
     setScanning(true);
     setError(null);
-    setNotice(null);
+    setNotice(resume ? "A scan is already running — following it." : "Scan started — this takes a couple of minutes.");
     try {
-      const { run } = await api.runDailyScan();
-      setNotice(`Scan complete — ${run.findingCount} findings. ${run.applied.length} action(s) processed.`);
+      const run = await followScan({ resume });
+      setNotice(
+        run
+          ? `Scan complete — ${run.findingCount} findings. ${run.applied.length} action(s) processed.`
+          : "Scan finished. See the run history below.",
+      );
     } catch (e) {
+      setNotice(null);
       setError((e as Error).message);
     } finally {
       setScanning(false);
       load();
     }
   };
+
+  // A run outlives the page: if one is in flight on mount, attach to it rather than
+  // showing an idle button that hides real work.
+  useEffect(() => {
+    api
+      .scanStatus()
+      .then((s) => {
+        if (s.running) void runScan(true);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="space-y-7">
@@ -82,7 +98,7 @@ export default function Actions({ onPendingChange }: { onPendingChange?: (n: num
           </p>
         </div>
         <button
-          onClick={runScan}
+          onClick={() => runScan()}
           disabled={scanning}
           className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-80"
         >

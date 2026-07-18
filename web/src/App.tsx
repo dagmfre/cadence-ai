@@ -13,7 +13,7 @@ import {
   Settings as SettingsIcon,
   X,
 } from "lucide-react";
-import { api, setUnauthorizedHandler, type AuthUser, type Workspace } from "@/lib/api";
+import { api, followScan, setUnauthorizedHandler, type AuthUser, type Workspace } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Logo, LogoMark } from "@/components/Logo";
 import Auth from "@/pages/Auth";
@@ -78,9 +78,12 @@ export default function App() {
 
   const runScan = async () => {
     setScanning(true);
-    navigate("/actions");
     try {
+      // Start first, then navigate: Actions checks for a run in flight on mount, and
+      // that check has to happen after the server knows about this one.
       await api.runDailyScan();
+      navigate("/actions");
+      await followScan({ resume: true }); // minutes, not seconds — Actions mirrors the progress
     } catch {
       /* Actions surfaces the failure */
     } finally {

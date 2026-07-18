@@ -67,6 +67,13 @@ export interface RunRecord {
   applied: string[];
 }
 
+export interface ScanStatus {
+  running: boolean;
+  startedAt: string | null;
+  error: string | null;
+  lastRun: RunRecord | null;
+}
+
 export interface Workspace {
   githubConnected: boolean;
   githubLogin: string | null;
@@ -141,8 +148,8 @@ export const api = {
   logout: () => req<{ signedOut: true }>("/api/auth/logout", post()),
   workspace: () => req<Workspace>("/api/workspace"),
   scan: () => req<ScanResult>("/api/scan"),
-  runDailyScan: () =>
-    req<{ run: RunRecord; findings: RiskFinding[]; actionPlan: unknown }>("/run-daily-scan", post({ trigger: "manual" })),
+  runDailyScan: () => req<{ accepted: true; startedAt: string }>("/run-daily-scan", post({ trigger: "manual" })),
+  scanStatus: () => req<ScanStatus>("/api/scan-status"),
   pending: () => req<PendingAction[]>("/api/pending"),
   approve: (id: string) => req<{ applied: string }>(`/api/approve/${id}`, post()),
   dismiss: (id: string) => req<{ dismissed: string }>(`/api/dismiss/${id}`, post()),
@@ -169,6 +176,28 @@ export const api = {
   settings: (patch: { autonomy?: Workspace["autonomy"]; teamMap?: Record<string, string> }) =>
     req<{ saved: true }>("/api/settings", post(patch)),
 };
+
+/**
+ * A run takes 1-4 minutes — longer than any proxy will hold a request open — so the
+ * server acknowledges immediately and we follow it. `resume` attaches to a scan that
+ * was already running (e.g. the page was reloaded mid-run) instead of starting a new one.
+ */
+export async function followScan(opts: { resume?: boolean } = {}): Promise<RunRecord | null> {
+  const previousRunId = (await api.scanStatus().catch(() => null))?.lastRun?.id ?? null;
+  if (!opts.resume) await api.runDailyScan();
+
+  const deadline = Date.now() + 10 * 60_000;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const status = await api.scanStatus();
+    if (status.error) throw new Error(status.error);
+    if (!status.running) {
+      // A finished run we didn't see before is this one; otherwise it ended without recording.
+      return status.lastRun && status.lastRun.id !== previousRunId ? status.lastRun : null;
+    }
+    if (Date.now() > deadline) throw new Error("The scan is taking unusually long — check the run history in a moment.");
+  }
+}
 
 export const ragColor = { red: "text-rag-red", amber: "text-rag-amber", green: "text-rag-green" } as const;
 export const severityColor = { high: "text-rag-red", medium: "text-rag-amber", low: "text-muted-foreground" } as const;
