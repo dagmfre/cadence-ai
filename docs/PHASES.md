@@ -71,6 +71,8 @@
 
 **Exit:** submitted to kidus@brain3.ai before the deadline.
 
+**Status:** deployed to Koyeb; accounts + per-account workspace isolation, connect wizard, closed-loop actions, conversational agent (web + Slack) all live. Remaining: record + submit.
+
 ---
 
 ## Cross-phase rules

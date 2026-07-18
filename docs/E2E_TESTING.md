@@ -216,6 +216,62 @@ message(s)`. Now the repo + Slack look untouched — ready for the next take.
 - Screens: `/wizard` (connect flow — resumes at the first incomplete step), `/` Overview (RAG banner + risks + board + items), `/actions` (pending approvals + Run scan now + history), `/chat` (same agent as Slack), `/settings` (autonomy + roster).
 - The chat and Slack threads share the same agent; conversations persist in Upstash across restarts.
 
+## 5c. Accounts & multi-account isolation
+
+Cadence has real accounts (email + password, scrypt-hashed, httpOnly session cookie).
+**Each account gets its own workspace** — its own repo/board/Slack connection, runs,
+pending actions and chat. The `.env` values are *not* inherited by web accounts; they
+configure the headless workspace only (CLI + cron).
+
+Check it yourself:
+
+```powershell
+# 1. register account A, connect it via the wizard, run a scan
+# 2. sign out, register account B
+#    → B must land on the wizard with an EMPTY workspace: no repo, no runs, no chat
+# 3. sign back in as A → A's workspace is exactly as it was
+```
+
+If a brand-new account ever shows someone else's repo, that's the isolation bug —
+report it.
+
+## 5d. Deploying (Koyeb)
+
+Build: `pnpm install && pnpm --dir web build` · Run: `pnpm start`
+
+| Env var | Why it matters |
+|---|---|
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | **Required.** Without them the server uses an in-memory store and every restart wipes all accounts and sessions. |
+| `NODE_ENV=production` | Makes the session cookie `Secure`. |
+| `PORT` | Must match the port Koyeb exposes (e.g. `8000`). |
+| `CRON_SECRET` | Lets the scheduler call `/run-daily-scan`; it can't sign in. |
+| `GEMINI_API_KEY` | The pipeline and chat. |
+| `GITHUB_OAUTH_CLIENT_ID` / `_SECRET` | The wizard's "Sign in with GitHub". Callback must be `https://<your-app>/auth/github/callback`. |
+| `GITHUB_TOKEN_CLASSIC`, `TARGET_REPO`, `SLACK_*`, `TEAM_MAP`, `AUTONOMY` | The headless workspace the cron scan and the `@Cadence` Slack listener act on. |
+
+Daily trigger (cron-job.org), preferring the header form:
+
+```
+POST https://<your-app>.koyeb.app/run-daily-scan
+Header: Authorization: Bearer <CRON_SECRET>
+Body:   {"trigger":"daily"}
+```
+
+`?key=<CRON_SECRET>` also works if your scheduler only accepts a URL — note that a
+query string lands in access logs, so treat those logs as secret.
+
+## 5e. Known limitations (deliberate, documented)
+
+- **Single instance.** The OAuth-state set and the login rate limiter are in-memory,
+  so running two replicas would break OAuth and weaken throttling.
+- **Slack `@Cadence` answers for the headless workspace only.** Per-account Slack
+  routing needs a Slack-team → account mapping; the web app is fully per-account.
+- **Concurrent writes can drop an item.** Approving an action while a scan is
+  appending uses read-modify-write on Redis without a transaction. Fine at demo
+  concurrency; would need atomic ops for real multi-user load.
+- **A repo needs an open milestone.** Cadence treats a milestone as the sprint; a
+  repo without one shows setup guidance rather than a forecast.
+
 ## 6. Troubleshooting
 
 | Symptom | Cause / fix |
@@ -227,6 +283,10 @@ message(s)`. Now the repo + Slack look untouched — ready for the next take.
 | Scan shows fewer findings than expected | The stale-based rules haven't tripped yet. Set `$env:STALE_THRESHOLD_MINUTES='0'` (see §3). |
 | `curl` behaves oddly in PowerShell | In PowerShell, `curl` is an alias for `Invoke-WebRequest`, not real curl. Use `Invoke-RestMethod` (shown above) or call `curl.exe` explicitly. |
 | Nothing posts to Slack | Confirm the bot is invited to the channel (`SLACK_CHANNEL_ID`) and the tokens in `.env` are valid. |
+| “No open milestone” on the dashboard | Expected for a repo with no milestone. Create one with a due date and add the sprint's issues, then Scan again. |
+| Signed out unexpectedly | The session cookie lasts 30 days; it is also dropped whenever the store restarts without Upstash configured. |
+| `429 Too many attempts` on sign-in | The per-IP limiter (10 tries / 5 min). Wait it out. |
+| Cron returns 401 | `CRON_SECRET` isn't set on the host, or the scheduler isn't sending it (see §5d). |
 
 ---
 
