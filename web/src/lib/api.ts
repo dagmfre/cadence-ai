@@ -165,6 +165,7 @@ export const api = {
   chatSend: (message: string) =>
     req<{ reply: string; proposedAction?: ConvoMessage["proposedAction"] }>("/api/chat", post({ message })),
   chatConfirm: () => req<{ reply: string }>("/api/chat/confirm", post()),
+  chatClear: () => req<{ cleared: true }>("/api/chat", { method: "DELETE" }),
   wizardGithubPat: (token: string) => req<{ login: string }>("/api/wizard/github", post({ token })),
   wizardRepos: () => req<{ fullName: string; private: boolean; openIssues: number }[]>("/api/wizard/repos"),
   wizardBoards: () => req<{ number: number; title: string }[]>("/api/wizard/boards"),

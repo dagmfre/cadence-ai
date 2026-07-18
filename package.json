@@ -17,7 +17,10 @@
     "start": "tsx server/src/index.ts",
     "web": "pnpm --dir web dev",
     "web:build": "pnpm --dir web build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:team": "tsx scripts/seed-team.ts",
+    "reset:chat": "tsx server/src/reset-chat-cli.ts",
+    "reset:slack": "tsx server/src/reset-slack-cli.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, CornerDownLeft, User } from "lucide-react";
+import { Check, CornerDownLeft, RotateCcw, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { LogoMark } from "@/components/Logo";
@@ -98,6 +98,17 @@ export default function Chat() {
     }
   };
 
+  /** The conversation is one rolling thread per workspace, so "new" means clearing it. */
+  const clearChat = async () => {
+    const previous = messages;
+    setMessages([]); // optimistic — starting over should feel instant
+    try {
+      await api.chatClear();
+    } catch {
+      setMessages(previous);
+    }
+  };
+
   const lastProposalIdx = messages.findLastIndex((m) => m.proposedAction && !m.executed);
 
   return (
@@ -109,7 +120,15 @@ export default function Chat() {
             Ask about the sprint — answers cite real items. Same agent as @Cadence in Slack.
           </p>
         </div>
-        <ModelPicker disabled={thinking} />
+        <div className="flex items-center gap-2">
+          <ModelPicker disabled={thinking} />
+          {messages.length > 0 && (
+            <Button variant="outline" size="sm" onClick={clearChat} disabled={thinking} aria-label="Start a new conversation">
+              <RotateCcw className="size-3.5" aria-hidden />
+              New chat
+            </Button>
+          )}
+        </div>
       </header>
 
       <div className="mt-5 flex-1 space-y-4 overflow-y-auto pr-1" role="log" aria-label="Conversation" aria-busy={thinking}>

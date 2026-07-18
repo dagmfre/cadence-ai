@@ -145,6 +145,12 @@ app.post("/api/chat", async (req) => {
   return runConvo("web", message, "web");
 });
 
+/** Start a fresh conversation. Without this, the only way to clear chat is a new account. */
+app.delete("/api/chat", async () => {
+  await store.setConvo("web", []);
+  return { cleared: true };
+});
+
 /** Explicit confirm button on the dashboard — same effect as replying "do it". */
 app.post("/api/chat/confirm", async () => {
   const { runConvo } = await import("./agents/convo.js");

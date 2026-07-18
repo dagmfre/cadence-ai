@@ -65,6 +65,35 @@ export async function deleteRecentBotMessages(): Promise<string> {
   return `deleted ${n} bot message(s)`;
 }
 
+/**
+ * Also clear the DMs. A bot token can only delete its own messages, so anything a
+ * human typed stays — say so plainly rather than implying the slate is clean.
+ */
+export async function deleteBotDms(): Promise<string> {
+  const { client, teamMap } = await ctx();
+  if (!client) return "skipped (no slack config)";
+  const me = await client.auth.test();
+
+  let deleted = 0;
+  let humanLeft = 0;
+  for (const slackId of new Set(Object.values(teamMap))) {
+    try {
+      const dm = slackId.startsWith("D") ? slackId : (await client.conversations.open({ users: slackId })).channel!.id!;
+      const hist = await client.conversations.history({ channel: dm, limit: 100 });
+      for (const m of hist.messages ?? []) {
+        if (!m.ts) continue;
+        if (m.user === me.user_id || m.bot_id) {
+          await client.chat.delete({ channel: dm, ts: m.ts }).catch(() => {});
+          deleted++;
+        } else humanLeft++;
+      }
+    } catch (e) {
+      return `deleted ${deleted} DM message(s); stopped on ${slackId}: ${slackError(e)}`;
+    }
+  }
+  return `deleted ${deleted} bot DM message(s)` + (humanLeft ? `; ${humanLeft} human message(s) left (a bot can't delete those)` : "");
+}
+
 /** DM the mapped Slack user; unmapped → graceful channel mention (never dropped, PRODUCT_FLOWS §4). */
 export async function notifyOwner(githubLogin: string, text: string): Promise<string> {
   const { client, channel, teamMap } = await ctx();
