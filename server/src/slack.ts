@@ -7,12 +7,16 @@
 import { WebClient } from "@slack/web-api";
 import { getWorkspace } from "./workspace.js";
 
-let cached: { token: string; client: WebClient } | null = null;
+const clients = new Map<string, WebClient>(); // per-token, so accounts don't thrash one slot
 async function ctx(): Promise<{ client: WebClient | null; channel: string; teamMap: Record<string, string> }> {
   const ws = await getWorkspace();
   if (!ws.slackBotToken) return { client: null, channel: "", teamMap: {} };
-  if (cached?.token !== ws.slackBotToken) cached = { token: ws.slackBotToken, client: new WebClient(ws.slackBotToken) };
-  return { client: cached.client, channel: ws.slackChannelId ?? "", teamMap: ws.teamMap };
+  let client = clients.get(ws.slackBotToken);
+  if (!client) {
+    client = new WebClient(ws.slackBotToken);
+    clients.set(ws.slackBotToken, client);
+  }
+  return { client, channel: ws.slackChannelId ?? "", teamMap: ws.teamMap };
 }
 
 /** Web client for other modules (listener); null when Slack isn't configured. */

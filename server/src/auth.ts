@@ -56,6 +56,35 @@ function setSessionCookie(reply: FastifyReply, token: string) {
   });
 }
 
+/**
+ * The scheduler can't sign in, so it presents CRON_SECRET. Header is preferred
+ * (query strings land in access logs); ?key= stays supported because some
+ * schedulers only let you set a URL.
+ */
+function isCronRequest(req: FastifyRequest): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const header = req.headers.authorization;
+  if (header === `Bearer ${secret}`) return true;
+  return (req.query as { key?: string } | undefined)?.key === secret;
+}
+
+/** Per-IP sliding window on the credential endpoints — blocks online brute force. */
+const attempts = new Map<string, number[]>();
+const WINDOW_MS = 5 * 60_000;
+const MAX_ATTEMPTS = 10;
+
+function rateLimited(req: FastifyRequest): boolean {
+  const now = Date.now();
+  const recent = (attempts.get(req.ip) ?? []).filter((t) => now - t < WINDOW_MS);
+  recent.push(now);
+  attempts.set(req.ip, recent);
+  if (attempts.size > 5_000) attempts.clear(); // crude bound; single instance
+  return recent.length > MAX_ATTEMPTS;
+}
+
+const TOO_MANY = "Too many attempts — wait a few minutes and try again.";
+
 export function registerAuth(app: FastifyInstance): void {
   /**
    * Guard every API route, and bind the request to the signed-in account's
@@ -66,24 +95,27 @@ export function registerAuth(app: FastifyInstance): void {
   app.addHook("onRequest", (req, reply, done) => {
     // Enter the context first, then fill it in — see context.ts for why.
     runWithWorkspace(async () => {
-      const url = req.url.split("?")[0] ?? "";
-      const guarded = url.startsWith("/api/") || url.startsWith("/auth/github") || url.startsWith("/run-daily-scan");
-      if (!guarded || url.startsWith("/api/auth/")) return done();
+      try {
+        const url = req.url.split("?")[0] ?? "";
+        const guarded = url.startsWith("/api/") || url.startsWith("/auth/github") || url.startsWith("/run-daily-scan");
+        if (!guarded || url.startsWith("/api/auth/")) return done();
 
-      if (url.startsWith("/run-daily-scan")) {
-        const secret = process.env.CRON_SECRET;
-        const key = (req.query as { key?: string } | undefined)?.key;
-        if (secret && key === secret) return done(); // headless scheduled run
+        if (url.startsWith("/run-daily-scan") && isCronRequest(req)) return done(); // headless scheduled run
+
+        const user = await currentUser(req);
+        if (!user) return reply.code(401).send({ error: "Not signed in" });
+        setWorkspaceId(user.email);
+        done();
+      } catch (err) {
+        // Without this, a store/network failure here escapes Fastify as an
+        // unhandled rejection (process exit) and the request hangs forever.
+        done(err as Error);
       }
-
-      const user = await currentUser(req);
-      if (!user) return reply.code(401).send({ error: "Not signed in" });
-      setWorkspaceId(user.email);
-      done();
     });
   });
 
   app.post("/api/auth/register", async (req, reply) => {
+    if (rateLimited(req)) return reply.code(429).send({ error: TOO_MANY });
     const parsed = CredentialsSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? "Invalid details" });
     const { email, password } = parsed.data;
@@ -99,6 +131,7 @@ export function registerAuth(app: FastifyInstance): void {
   });
 
   app.post("/api/auth/login", async (req, reply) => {
+    if (rateLimited(req)) return reply.code(429).send({ error: TOO_MANY });
     const parsed = CredentialsSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "Enter your email and password." });
     const { email, password } = parsed.data;

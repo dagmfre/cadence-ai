@@ -15,6 +15,13 @@ await app.register(fastifyCookie);
 registerAuth(app); // must precede the routes it guards
 registerWizard(app);
 
+/** A workspace that hasn't finished the wizard is a 409 with a next step, not a 500. */
+app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
+  if (err.name === "NotConnectedError") return reply.code(409).send({ error: err.message });
+  app.log.error(err);
+  return reply.code(err.statusCode ?? 500).send({ error: err.message || "Something failed on the server." });
+});
+
 app.get("/api/scan", async () => {
   const scan = await runScan();
   // Carry the last run's root causes / recommended actions onto matching findings,
@@ -102,7 +109,13 @@ if (existsSync(dist)) {
 }
 
 const port = Number(process.env.PORT ?? 8787);
-app.listen({ port, host: "0.0.0.0" }).then(() => console.log(`Cadence server on :${port}`));
+app.listen({ port, host: "0.0.0.0" }).then(
+  () => console.log(`Cadence server on :${port}`),
+  (err) => {
+    console.error(`Cadence failed to start on :${port}`, err);
+    process.exit(1);
+  },
+);
 
 // Slack conversational surface — fire-and-forget, never blocks the HTTP server
 import("./slack-listener.js")

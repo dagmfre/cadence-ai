@@ -7,15 +7,28 @@ import { Octokit } from "@octokit/rest";
 import { BoardStatus, DeliveryItem, SprintModel, SprintModelSchema } from "./model.js";
 import { getWorkspace } from "./workspace.js";
 
-let cachedGh: { token: string; gh: Octokit } | null = null;
+/** Thrown when the workspace has no repo/token yet — routes map this to 409, not 500. */
+export class NotConnectedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NotConnectedError";
+  }
+}
+
+const clients = new Map<string, Octokit>(); // per-token, so two accounts don't thrash one slot
+
 /** Lazy workspace-driven client — wizard-connected config wins over env (C1). */
 async function ctx() {
   const ws = await getWorkspace();
-  if (!ws.githubToken) throw new Error("No GitHub token — connect GitHub in the wizard or set GITHUB_TOKEN_CLASSIC");
+  if (!ws.githubToken) throw new NotConnectedError("Connect GitHub in the wizard first.");
   const [owner, repo] = ws.repo.split("/") as [string, string];
-  if (!owner || !repo) throw new Error('Workspace repo must be "owner/name"');
-  if (cachedGh?.token !== ws.githubToken) cachedGh = { token: ws.githubToken, gh: new Octokit({ auth: ws.githubToken }) };
-  return { gh: cachedGh.gh, owner, repo, projectNumber: ws.projectNumber };
+  if (!owner || !repo) throw new NotConnectedError("Pick a repository in the wizard first.");
+  let gh = clients.get(ws.githubToken);
+  if (!gh) {
+    gh = new Octokit({ auth: ws.githubToken });
+    clients.set(ws.githubToken, gh);
+  }
+  return { gh, owner, repo, projectNumber: ws.projectNumber };
 }
 
 async function boardStatuses(): Promise<Map<number, string>> {

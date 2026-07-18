@@ -36,6 +36,20 @@ export interface Workspace {
 
 const cache = new Map<string, { ws: Workspace; at: number }>();
 
+/** A malformed TEAM_MAP must not take down every scan — warn once and carry on. */
+let warnedTeamMap = false;
+function parseTeamMap(raw: string | undefined): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, string>) : {};
+  } catch {
+    if (!warnedTeamMap) console.warn("⚠ TEAM_MAP is not valid JSON — ignoring it (owner DMs will fall back to the channel).");
+    warnedTeamMap = true;
+    return {};
+  }
+}
+
 /**
  * A signed-in account sees ONLY what it connected itself. The .env credentials are
  * the headless workspace used by the CLI scripts and the daily cron trigger — if
@@ -56,10 +70,10 @@ export async function getWorkspace(): Promise<Workspace> {
     githubToken: saved.githubToken ?? e.GITHUB_TOKEN_CLASSIC ?? e.GITHUB_TOKEN ?? "",
     githubLogin: saved.githubLogin,
     repo: saved.repo ?? e.TARGET_REPO ?? "",
-    projectNumber: saved.projectNumber ?? Number(e.PROJECT_NUMBER ?? 2),
+    projectNumber: saved.projectNumber ?? (Number.isFinite(Number(e.PROJECT_NUMBER)) ? Number(e.PROJECT_NUMBER) : 2),
     slackBotToken: saved.slackBotToken ?? e.SLACK_BOT_TOKEN,
     slackChannelId: saved.slackChannelId ?? e.SLACK_CHANNEL_ID,
-    teamMap: saved.teamMap ?? JSON.parse(e.TEAM_MAP ?? "{}"),
+    teamMap: saved.teamMap ?? parseTeamMap(e.TEAM_MAP),
     autonomy: saved.autonomy ?? AutonomySchema.catch("copilot").parse(e.AUTONOMY),
   };
   cache.set(key, { ws, at: Date.now() });

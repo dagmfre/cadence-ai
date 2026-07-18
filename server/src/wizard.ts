@@ -7,10 +7,28 @@ import type { FastifyInstance } from "fastify";
 import { Octokit } from "@octokit/rest";
 import { WebClient } from "@slack/web-api";
 import { randomBytes } from "node:crypto";
+import { z } from "zod";
 import { getWorkspace, saveWorkspace, AutonomySchema, WorkspaceConfigSchema } from "./workspace.js";
-import { fetchSprintModel } from "./github.js";
+import { fetchSprintModel, NotConnectedError } from "./github.js";
 
-const states = new Set<string>(); // OAuth CSRF nonces (in-memory is fine — single instance)
+/** OAuth CSRF nonces → expiry. In-memory: the app assumes a single instance. */
+const states = new Map<string, number>();
+const STATE_TTL_MS = 10 * 60_000;
+
+function takeState(state: string): boolean {
+  const now = Date.now();
+  for (const [s, exp] of states) if (exp < now) states.delete(s); // prune abandoned flows
+  const expiry = states.get(state);
+  states.delete(state);
+  return expiry !== undefined && expiry >= now;
+}
+
+/** Authenticated Octokit for wizard discovery, or a 409 telling the user what to do. */
+async function wizardGh(): Promise<Octokit> {
+  const ws = await getWorkspace();
+  if (!ws.githubToken) throw new NotConnectedError("Connect GitHub first.");
+  return new Octokit({ auth: ws.githubToken });
+}
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -26,14 +44,15 @@ export function registerWizard(app: FastifyInstance): void {
     const id = process.env.GITHUB_OAUTH_CLIENT_ID;
     if (!id) return reply.code(500).send({ error: "GITHUB_OAUTH_CLIENT_ID not configured — use the PAT fallback" });
     const state = randomBytes(16).toString("hex");
-    states.add(state);
+    states.set(state, Date.now() + STATE_TTL_MS);
     const url = `https://github.com/login/oauth/authorize?client_id=${id}&scope=${encodeURIComponent("repo project read:user user:email")}&state=${state}`;
     return reply.redirect(url);
   });
 
   app.get("/auth/github/callback", async (req, reply) => {
     const { code, state } = req.query as { code?: string; state?: string };
-    if (!code || !state || !states.delete(state)) return reply.code(400).send({ error: "bad OAuth state" });
+    if (!code || !state || !takeState(state))
+      return reply.code(400).send({ error: "That sign-in link expired — start the GitHub step again." });
     const res = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -58,21 +77,23 @@ export function registerWizard(app: FastifyInstance): void {
 
   // ---- Discovery: the dev PICKS rather than types ----
   app.get("/api/wizard/repos", async () => {
-    const ws = await getWorkspace();
-    const gh = new Octokit({ auth: ws.githubToken });
+    const gh = await wizardGh();
     const repos = await gh.repos.listForAuthenticatedUser({ sort: "updated", per_page: 30 });
     return repos.data.map((r) => ({ fullName: r.full_name, private: r.private, openIssues: r.open_issues_count }));
   });
 
   app.get("/api/wizard/boards", async () => {
-    const ws = await getWorkspace();
-    const gh = new Octokit({ auth: ws.githubToken });
+    const gh = await wizardGh();
     const q: any = await gh.graphql(`query{ viewer{ projectsV2(first:20){ nodes{ number title } } } }`);
     return (q.viewer.projectsV2.nodes ?? []).map((n: { number: number; title: string }) => n);
   });
 
-  app.post("/api/wizard/repo", async (req) => {
-    const { repo, projectNumber } = req.body as { repo: string; projectNumber?: number };
+  app.post("/api/wizard/repo", async (req, reply) => {
+    const parsed = z
+      .object({ repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, 'Repository must look like "owner/name"'), projectNumber: z.number().int().positive().optional() })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? "Invalid repository" });
+    const { repo, projectNumber } = parsed.data;
     await saveWorkspace({ repo, ...(projectNumber != null && { projectNumber }) });
     return { saved: true };
   });

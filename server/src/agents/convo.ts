@@ -38,11 +38,13 @@ export async function runConvo(convoId: string, userText: string): Promise<Convo
     if ((await autonomyMode()) === "observe") {
       reply = "I'm in observe mode, so I can't apply actions — switch to copilot or autopilot and ask again.";
     } else {
+      // Claim the proposal BEFORE executing, so two fast "do it"s can't double-apply.
       const p = lastProposal.proposedAction!;
+      lastProposal.executed = true;
+      await store.setConvo(convoId, history);
       const result = await executeOne({ ...p, id: `chat-${Date.now()}`, createdAt: now(), status: "approved" }).catch(
         (e: Error) => `failed: ${e.message}`,
       );
-      lastProposal.executed = true;
       reply = `Done — ${result}.`;
     }
     await saveTurn(convoId, history, text, { reply });
