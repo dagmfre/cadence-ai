@@ -30,7 +30,15 @@ export default function Chat() {
       const { reply, proposedAction } = await api.chatSend(t);
       setMessages((m) => [...m, { role: "assistant", text: reply, ts: new Date().toISOString(), proposedAction }]);
     } catch (e) {
-      setMessages((m) => [...m, { role: "assistant", text: `Something went wrong: ${(e as Error).message}`, ts: new Date().toISOString() }]);
+      const detail = (e as Error).message;
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          text: `I hit an error answering that — ${detail.replace(/\.$/, "")}. Try me again.`,
+          ts: new Date().toISOString(),
+        },
+      ]);
     } finally {
       setThinking(false);
     }
@@ -41,6 +49,11 @@ export default function Chat() {
     try {
       await api.chatConfirm();
       setMessages(await api.chat()); // server state marks the proposal executed
+    } catch (e) {
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", text: `I couldn't apply that — ${(e as Error).message}`, ts: new Date().toISOString() },
+      ]);
     } finally {
       setThinking(false);
     }

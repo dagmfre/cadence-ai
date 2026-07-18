@@ -7,8 +7,12 @@ import { Octokit } from "@octokit/rest";
 import { BoardStatus, DeliveryItem, SprintModel, SprintModelSchema } from "./model.js";
 import { getWorkspace } from "./workspace.js";
 
-/** Thrown when the workspace has no repo/token yet — routes map this to 409, not 500. */
+/**
+ * Setup isn't finished yet (no token, no repo, or no sprint to track). Always a
+ * 409 with a next step the user can actually act on — never a 500.
+ */
 export class NotConnectedError extends Error {
+  statusCode = 409;
   constructor(message: string) {
     super(message);
     this.name = "NotConnectedError";
@@ -64,7 +68,10 @@ export async function fetchSprintModel(): Promise<SprintModel> {
   // Sprint = nearest-due open milestone (DECISIONS §17)
   const ms = await gh.issues.listMilestones({ owner, repo, state: "open", sort: "due_on", direction: "asc" });
   const m = ms.data[0];
-  if (!m) throw new Error("No open milestone — run pnpm seed first.");
+  if (!m)
+    throw new NotConnectedError(
+      `${owner}/${repo} has no open milestone. Cadence tracks a sprint as a GitHub milestone — create one with a due date, add the sprint's issues to it, then scan again.`,
+    );
 
   const [issuesRes, prsRes, board] = await Promise.all([
     gh.paginate(gh.issues.listForRepo, { owner, repo, milestone: String(m.number), state: "all", per_page: 100 }),

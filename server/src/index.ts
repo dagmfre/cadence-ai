@@ -17,9 +17,9 @@ registerWizard(app);
 
 /** A workspace that hasn't finished the wizard is a 409 with a next step, not a 500. */
 app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
-  if (err.name === "NotConnectedError") return reply.code(409).send({ error: err.message });
-  app.log.error(err);
-  return reply.code(err.statusCode ?? 500).send({ error: err.message || "Something failed on the server." });
+  const status = err.statusCode ?? 500;
+  if (status >= 500) app.log.error(err); // setup problems (409) are expected, not incidents
+  return reply.code(status).send({ error: err.message || "Something failed on the server." });
 });
 
 app.get("/api/scan", async () => {

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Loader2, Radar } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LogoMark } from "@/components/Logo";
 import { api, type RosterEntry, type Workspace } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -30,8 +31,11 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
   const [slackToken, setSlackToken] = useState("");
   const [channels, setChannels] = useState<{ id: string; name: string; isMember: boolean }[]>([]);
   const [channel, setChannel] = useState(workspace.slackChannelId ?? "");
+  const [discovering, setDiscovering] = useState(false);
   // Step 3 state
   const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [rosterState, setRosterState] = useState<"loading" | "ready" | "failed">("loading");
+  const [rosterNote, setRosterNote] = useState<string | null>(null);
   const [members, setMembers] = useState<{ id: string; name: string; realName: string }[]>([]);
   // Step 4 state
   const [autonomy, setAutonomy] = useState<Workspace["autonomy"]>(workspace.autonomy);
@@ -39,17 +43,29 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
 
   useEffect(() => {
     if (workspace.githubConnected && step === 0) {
-      api.wizardRepos().then(setRepos).catch(() => {});
-      api.wizardBoards().then(setBoards).catch(() => {});
+      setDiscovering(true);
+      Promise.all([
+        api.wizardRepos().then(setRepos),
+        api.wizardBoards().then(setBoards),
+      ])
+        .catch((e: Error) => setError(`Couldn't read your GitHub account: ${e.message}`))
+        .finally(() => setDiscovering(false));
     }
-    if (step === 2)
+    if (step === 2) {
+      setRosterState("loading");
       api
         .wizardRoster()
         .then((r) => {
           setRoster(r.roster);
           setMembers(r.slackMembers);
+          setRosterNote(r.note ?? null);
+          setRosterState("ready");
         })
-        .catch((e: Error) => setError(e.message));
+        .catch((e: Error) => {
+          setRosterState("failed");
+          setRosterNote(e.message);
+        });
+    }
   }, [step, workspace.githubConnected]);
 
   const run = async (fn: () => Promise<unknown>, next?: number) => {
@@ -66,19 +82,28 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
     }
   };
 
-  const finish = () =>
-    run(async () => {
+  const finish = async () => {
+    setBusy(true);
+    setError(null);
+    try {
       const teamMap = Object.fromEntries(roster.filter((r) => r.slackId).map((r) => [r.githubLogin, r.slackId!]));
       await api.wizardComplete(teamMap, autonomy);
       setScanning(true);
       await api.scan(); // first scan, live
+      onChanged();
       nav("/");
-    });
+    } catch (e) {
+      setScanning(false); // otherwise the button stays stuck on "Running your first scan…"
+      setError(`${(e as Error).message} — your settings were saved; you can open the dashboard and rescan.`);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="mx-auto flex min-h-full max-w-xl flex-col justify-center px-6 py-10">
       <div className="mb-8 flex items-center gap-2.5">
-        <Radar className="size-6 text-primary" aria-hidden />
+        <LogoMark className="size-6" />
         <span className="text-xl font-semibold tracking-tight">Cadence</span>
         <span className="text-muted-foreground">· connect your workspace</span>
       </div>
@@ -136,9 +161,9 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
                   </p>
                   <div className="space-y-2">
                     <Label>Repository to watch</Label>
-                    <Select value={repo} onValueChange={setRepo}>
+                    <Select value={repo} onValueChange={setRepo} disabled={!repos.length}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pick a repository" />
+                        <SelectValue placeholder={discovering ? "Loading your repositories…" : repos.length ? "Pick a repository" : "No repositories available"} />
                       </SelectTrigger>
                       <SelectContent>
                         {repos.map((r) => (
@@ -148,6 +173,11 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
                         ))}
                       </SelectContent>
                     </Select>
+                    {!discovering && !repos.length && (
+                      <p className="text-xs text-muted-foreground">
+                        Cadence couldn’t list any repositories. Reconnect GitHub, or use a token with the <code className="font-mono">repo</code> scope.
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Projects v2 board</Label>
@@ -212,6 +242,9 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
                     {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
                     Validate & list channels
                   </Button>
+                  <button type="button" onClick={() => setStep(2)} className="w-full text-xs text-muted-foreground underline-offset-2 hover:underline">
+                    Skip Slack for now — Cadence still labels and comments on GitHub
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -232,6 +265,9 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
                     {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
                     Continue
                   </Button>
+                  <button type="button" onClick={() => setStep(2)} className="w-full text-xs text-muted-foreground underline-offset-2 hover:underline">
+                    Skip Slack for now
+                  </button>
                 </div>
               )}
             </>
@@ -245,8 +281,18 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
                   Cadence matched the sprint’s GitHub people to Slack members. Fix any misses — this is how nudges reach the right human.
                 </p>
               </div>
-              {roster.length === 0 ? (
+              {rosterNote && (
+                <div className="rounded-md border border-border bg-secondary/60 px-3 py-2.5 text-xs text-muted-foreground">
+                  {rosterNote}
+                  <span className="block pt-1 text-ink-faint">You can finish setup now and map people later in Settings.</span>
+                </div>
+              )}
+              {rosterState === "loading" ? (
                 <p className="text-sm text-muted-foreground">Building the roster from your sprint…</p>
+              ) : roster.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No GitHub people to map yet — Cadence will flag contributors as they appear in the sprint.
+                </p>
               ) : (
                 <div className="space-y-2.5">
                   {roster.map((r, idx) => (

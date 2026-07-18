@@ -18,6 +18,10 @@ export default function Auth({ onSignedIn }: { onSignedIn: (user: AuthUser) => v
 
   const registering = mode === "register";
   const strength = password.length >= 12 ? "Strong" : password.length >= 8 ? "Good" : "Too short";
+  // Point the red border at the field the server actually complained about.
+  const emailError = !!error && /email|account/i.test(error);
+  const passwordError = !!error && /password/i.test(error);
+  const bothError = !!error && !emailError && !passwordError;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,9 +66,11 @@ export default function Auth({ onSignedIn }: { onSignedIn: (user: AuthUser) => v
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              aria-invalid={!!error}
+              aria-invalid={emailError || bothError}
+              className={cn((emailError || bothError) && "border-rag-red")}
               placeholder="you@company.com"
             />
+            {emailError && <p className="text-xs text-rag-red">{error}</p>}
           </div>
 
           <div className="mt-3.5 space-y-1.5">
@@ -77,9 +83,11 @@ export default function Auth({ onSignedIn }: { onSignedIn: (user: AuthUser) => v
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              aria-invalid={!!error}
+              aria-invalid={passwordError || bothError}
+              className={cn((passwordError || bothError) && "border-rag-red")}
               aria-describedby={registering ? "pw-hint" : undefined}
             />
+            {passwordError && <p className="text-xs text-rag-red">{error}</p>}
             {registering && password.length > 0 && (
               <p id="pw-hint" className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="h-[3px] flex-1 overflow-hidden rounded-full bg-secondary">
@@ -95,7 +103,7 @@ export default function Auth({ onSignedIn }: { onSignedIn: (user: AuthUser) => v
             )}
           </div>
 
-          {error && (
+          {bothError && (
             <p role="alert" className="mt-3 text-xs text-rag-red">
               {error}
             </p>

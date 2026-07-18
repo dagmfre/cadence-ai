@@ -121,10 +121,18 @@ export function registerWizard(app: FastifyInstance): void {
   // ---- Step 3 · Team roster: GitHub logins × Slack members, auto-matched (§4) ----
   app.get("/api/wizard/roster", async () => {
     const ws = await getWorkspace();
-    const model = await fetchSprintModel();
-    const logins = [...new Set(model.items.flatMap((i) => [i.author, ...i.assignees, ...i.requestedReviewers]))].filter(
-      (l) => l !== "unknown",
-    );
+    // No sprint yet is a normal state for a fresh repo — return what we can (the
+    // Slack side) with a note, rather than dead-ending the wizard on an error.
+    let logins: string[] = [];
+    let note: string | null = null;
+    try {
+      const model = await fetchSprintModel();
+      logins = [...new Set(model.items.flatMap((i) => [i.author, ...i.assignees, ...i.requestedReviewers]))].filter(
+        (l) => l !== "unknown",
+      );
+    } catch (e) {
+      note = (e as Error).message;
+    }
     const web = ws.slackBotToken && ws.slackChannelId ? new WebClient(ws.slackBotToken) : null;
     let members: { id: string; name: string; realName: string }[] = [];
     if (web) {
@@ -149,7 +157,7 @@ export function registerWizard(app: FastifyInstance): void {
         confidence: ws.teamMap[login] ? "saved" : exact ? "high" : partial ? "medium" : "unmatched",
       };
     });
-    return { roster, slackMembers: members };
+    return { roster, slackMembers: members, note };
   });
 
   // ---- Step 4 · Autonomy + finish (first scan is the caller's next request) ----
