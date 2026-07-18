@@ -6,8 +6,7 @@
 import { Redis } from "@upstash/redis";
 import { ActionPlanSchema, ScanResult } from "./model.js";
 import { z } from "zod";
-
-const WS = "ws:default";
+import { workspaceKey } from "./context.js";
 
 export const PendingActionSchema = z.object({
   id: z.string(),
@@ -75,50 +74,50 @@ export const store = {
 
   /** Raw workspace config record; workspace.ts owns the schema (avoids an import cycle). */
   async getConfig(): Promise<unknown> {
-    return get<unknown>(`${WS}:config`);
+    return get<unknown>(`${workspaceKey()}:config`);
   },
   async setConfig(config: unknown) {
-    await set(`${WS}:config`, config);
+    await set(`${workspaceKey()}:config`, config);
   },
   async getPending(): Promise<PendingAction[]> {
-    return (await get<PendingAction[]>(`${WS}:pending`)) ?? [];
+    return (await get<PendingAction[]>(`${workspaceKey()}:pending`)) ?? [];
   },
   async setPending(actions: PendingAction[]) {
-    await set(`${WS}:pending`, actions);
+    await set(`${workspaceKey()}:pending`, actions);
   },
   async addRun(run: RunRecord) {
-    const runs = (await get<RunRecord[]>(`${WS}:runs`)) ?? [];
+    const runs = (await get<RunRecord[]>(`${workspaceKey()}:runs`)) ?? [];
     runs.unshift(run);
-    await set(`${WS}:runs`, runs.slice(0, 50));
+    await set(`${workspaceKey()}:runs`, runs.slice(0, 50));
   },
   async getRuns(): Promise<RunRecord[]> {
-    return (await get<RunRecord[]>(`${WS}:runs`)) ?? [];
+    return (await get<RunRecord[]>(`${workspaceKey()}:runs`)) ?? [];
   },
   async getLastScan(): Promise<ScanResult | null> {
-    return get<ScanResult>(`${WS}:lastScan`);
+    return get<ScanResult>(`${workspaceKey()}:lastScan`);
   },
   async setLastScan(r: ScanResult) {
-    await set(`${WS}:lastScan`, r);
+    await set(`${workspaceKey()}:lastScan`, r);
   },
   /** LLM-enriched findings from the last full run — merged into later scans so the
    *  dashboard keeps showing root cause + recommended action between runs. */
   async getEnrichment(): Promise<ScanResult["findings"]> {
-    return (await get<ScanResult["findings"]>(`${WS}:enrichment`)) ?? [];
+    return (await get<ScanResult["findings"]>(`${workspaceKey()}:enrichment`)) ?? [];
   },
   async setEnrichment(findings: ScanResult["findings"]) {
-    await set(`${WS}:enrichment`, findings);
+    await set(`${workspaceKey()}:enrichment`, findings);
   },
   async getConvo(convoId: string): Promise<ConvoMessage[]> {
-    return (await get<ConvoMessage[]>(`${WS}:convo:${convoId}`)) ?? [];
+    return (await get<ConvoMessage[]>(`${workspaceKey()}:convo:${convoId}`)) ?? [];
   },
   async setConvo(convoId: string, messages: ConvoMessage[]) {
-    await set(`${WS}:convo:${convoId}`, messages);
+    await set(`${workspaceKey()}:convo:${convoId}`, messages);
   },
   async listConvoIds(): Promise<string[]> {
-    return (await get<string[]>(`${WS}:convos`)) ?? [];
+    return (await get<string[]>(`${workspaceKey()}:convos`)) ?? [];
   },
   async trackConvoId(convoId: string) {
     const ids = await this.listConvoIds();
-    if (!ids.includes(convoId)) await set(`${WS}:convos`, [...ids, convoId]);
+    if (!ids.includes(convoId)) await set(`${workspaceKey()}:convos`, [...ids, convoId]);
   },
 };

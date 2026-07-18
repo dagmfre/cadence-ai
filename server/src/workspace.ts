@@ -6,6 +6,7 @@
  */
 import { z } from "zod";
 import { store } from "./store.js";
+import { currentWorkspaceId } from "./context.js";
 
 export const AutonomySchema = z.enum(["observe", "copilot", "autopilot"]);
 
@@ -33,13 +34,24 @@ export interface Workspace {
   autonomy: z.infer<typeof AutonomySchema>;
 }
 
-let cache: { ws: Workspace; at: number } | null = null;
+const cache = new Map<string, { ws: Workspace; at: number }>();
 
+/**
+ * A signed-in account sees ONLY what it connected itself. The .env credentials are
+ * the headless workspace used by the CLI scripts and the daily cron trigger — if
+ * they leaked into user workspaces, every new account would appear pre-connected
+ * to the demo repo (which is exactly the bug this scoping fixes).
+ */
 export async function getWorkspace(): Promise<Workspace> {
-  if (cache && Date.now() - cache.at < 10_000) return cache.ws;
+  const id = currentWorkspaceId();
+  const key = id ?? "__headless__";
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < 10_000) return hit.ws;
+
   const parsed = WorkspaceConfigSchema.safeParse(await store.getConfig());
   const saved: WorkspaceConfig = parsed.success ? parsed.data : {};
-  const e = process.env;
+  const e = id === null ? process.env : ({} as NodeJS.ProcessEnv); // env only when headless
+
   const ws: Workspace = {
     githubToken: saved.githubToken ?? e.GITHUB_TOKEN_CLASSIC ?? e.GITHUB_TOKEN ?? "",
     githubLogin: saved.githubLogin,
@@ -50,12 +62,12 @@ export async function getWorkspace(): Promise<Workspace> {
     teamMap: saved.teamMap ?? JSON.parse(e.TEAM_MAP ?? "{}"),
     autonomy: saved.autonomy ?? AutonomySchema.catch("copilot").parse(e.AUTONOMY),
   };
-  cache = { ws, at: Date.now() };
+  cache.set(key, { ws, at: Date.now() });
   return ws;
 }
 
 export async function saveWorkspace(patch: WorkspaceConfig): Promise<void> {
   const parsed = WorkspaceConfigSchema.safeParse(await store.getConfig());
   await store.setConfig({ ...(parsed.success ? parsed.data : {}), ...patch });
-  cache = null;
+  cache.delete(currentWorkspaceId() ?? "__headless__");
 }

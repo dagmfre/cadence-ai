@@ -9,6 +9,7 @@ import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { store } from "./store.js";
+import { runWithWorkspace, setWorkspaceId } from "./context.js";
 
 const scryptAsync = promisify(scrypt) as (pw: string, salt: string, len: number) => Promise<Buffer>;
 const COOKIE = "cadence_session";
@@ -56,11 +57,30 @@ function setSessionCookie(reply: FastifyReply, token: string) {
 }
 
 export function registerAuth(app: FastifyInstance): void {
-  /** Everything except auth, the OAuth callback and static assets requires a session. */
-  app.addHook("onRequest", async (req, reply) => {
-    const open = req.url.startsWith("/api/auth/") || req.url.startsWith("/auth/github");
-    if (open || !(req.url.startsWith("/api/") || req.url.startsWith("/run-daily-scan"))) return;
-    if (!(await currentUser(req))) return reply.code(401).send({ error: "Not signed in" });
+  /**
+   * Guard every API route, and bind the request to the signed-in account's
+   * workspace so one account can never read another's repo, runs or chat.
+   * Static assets stay public; the cron trigger authenticates with CRON_SECRET
+   * and deliberately runs headless (the .env workspace).
+   */
+  app.addHook("onRequest", (req, reply, done) => {
+    // Enter the context first, then fill it in — see context.ts for why.
+    runWithWorkspace(async () => {
+      const url = req.url.split("?")[0] ?? "";
+      const guarded = url.startsWith("/api/") || url.startsWith("/auth/github") || url.startsWith("/run-daily-scan");
+      if (!guarded || url.startsWith("/api/auth/")) return done();
+
+      if (url.startsWith("/run-daily-scan")) {
+        const secret = process.env.CRON_SECRET;
+        const key = (req.query as { key?: string } | undefined)?.key;
+        if (secret && key === secret) return done(); // headless scheduled run
+      }
+
+      const user = await currentUser(req);
+      if (!user) return reply.code(401).send({ error: "Not signed in" });
+      setWorkspaceId(user.email);
+      done();
+    });
   });
 
   app.post("/api/auth/register", async (req, reply) => {
