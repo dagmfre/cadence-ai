@@ -100,6 +100,14 @@ export const store = {
   async setLastScan(r: ScanResult) {
     await set(`${WS}:lastScan`, r);
   },
+  /** LLM-enriched findings from the last full run — merged into later scans so the
+   *  dashboard keeps showing root cause + recommended action between runs. */
+  async getEnrichment(): Promise<ScanResult["findings"]> {
+    return (await get<ScanResult["findings"]>(`${WS}:enrichment`)) ?? [];
+  },
+  async setEnrichment(findings: ScanResult["findings"]) {
+    await set(`${WS}:enrichment`, findings);
+  },
   async getConvo(convoId: string): Promise<ConvoMessage[]> {
     return (await get<ConvoMessage[]>(`${WS}:convo:${convoId}`)) ?? [];
   },

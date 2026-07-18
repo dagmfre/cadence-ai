@@ -17,6 +17,15 @@ registerWizard(app);
 
 app.get("/api/scan", async () => {
   const scan = await runScan();
+  // Carry the last run's root causes / recommended actions onto matching findings,
+  // so the dashboard shows the full picture between full pipeline runs.
+  const enrichment = new Map(
+    (await store.getEnrichment()).map((f) => [`${f.itemNumber}:${f.category}`, f] as const),
+  );
+  scan.findings = scan.findings.map((f) => {
+    const e = enrichment.get(`${f.itemNumber}:${f.category}`);
+    return e ? { ...f, rootCause: e.rootCause, recommendedAction: e.recommendedAction } : f;
+  });
   await store.setLastScan(scan);
   return scan;
 });
@@ -29,6 +38,7 @@ app.post("/run-daily-scan", async (req) => {
   const scan = await runScan();
   await store.setLastScan(scan);
   const result = await runPipeline(scan);
+  await store.setEnrichment(result.findings); // /api/scan merges these back in
   const applied = await executePlan(result.actionPlan);
 
   const run = {

@@ -28,6 +28,9 @@
   --input: oklch(0.42 0.016 260);
   --ring: oklch(0.76 0.115 200);
 
+  /* third ink tier — meta/timestamps only (DESIGN.md §2) */
+  --ink-faint: oklch(0.62 0.010 260);
+
   /* RAG semantic trio — text + dot markers only, never pill backgrounds */
   --rag-red: oklch(0.68 0.185 25);
   --rag-amber: oklch(0.80 0.145 80);
@@ -56,6 +59,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-ink-faint: var(--ink-faint);
   --color-rag-red: var(--rag-red);
   --color-rag-amber: var(--rag-amber);
   --color-rag-green: var(--rag-green);
