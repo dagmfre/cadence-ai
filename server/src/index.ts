@@ -7,7 +7,7 @@ import { existsSync } from "node:fs";
 import { runScan } from "./scan.js";
 import { store } from "./store.js";
 import { registerWizard } from "./wizard.js";
-import { registerAuth } from "./auth.js";
+import { registerAuth, isCronRequest } from "./auth.js";
 import fastifyCookie from "@fastify/cookie";
 
 const app = Fastify({ logger: { level: "warn" } });
@@ -38,7 +38,7 @@ app.get("/api/scan", async () => {
 });
 
 /** The full closed loop: scan → agents → act per autonomy mode → record run. */
-app.post("/run-daily-scan", async (req) => {
+async function closedLoop(trigger: "daily" | "manual") {
   const { runPipeline } = await import("./agents/pipeline.js");
   const { executePlan } = await import("./actions.js");
 
@@ -51,7 +51,7 @@ app.post("/run-daily-scan", async (req) => {
   const run = {
     id: `run-${Date.now()}`,
     at: new Date().toISOString(),
-    trigger: ((req.body as any)?.trigger ?? "manual") as "daily" | "manual",
+    trigger,
     forecast: { ...scan.forecast, narrative: result.forecastNarrative },
     findingCount: result.findings.length,
     report: result.actionPlan.slackReport,
@@ -59,6 +59,19 @@ app.post("/run-daily-scan", async (req) => {
   };
   await store.addRun(run);
   return { run, findings: result.findings, actionPlan: result.actionPlan };
+}
+
+app.post("/run-daily-scan", async (req, reply) => {
+  const trigger = ((req.body as { trigger?: string } | undefined)?.trigger ?? "manual") as "daily" | "manual";
+
+  // A scheduler can't wait 1-4 minutes for the pipeline — cron-job.org caps at 30s
+  // and disables jobs that keep timing out. Acknowledge now, work in the background.
+  if (isCronRequest(req)) {
+    void closedLoop("daily").catch((e) => app.log.error(e, "scheduled scan failed"));
+    return reply.code(202).send({ accepted: true, note: "Scan started — results land in run history." });
+  }
+
+  return closedLoop(trigger); // dashboard waits, it wants the result
 });
 
 app.get("/api/pending", async () => store.getPending());

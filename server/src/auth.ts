@@ -61,7 +61,7 @@ function setSessionCookie(reply: FastifyReply, token: string) {
  * (query strings land in access logs); ?key= stays supported because some
  * schedulers only let you set a URL.
  */
-function isCronRequest(req: FastifyRequest): boolean {
+export function isCronRequest(req: FastifyRequest): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
   const header = req.headers.authorization;

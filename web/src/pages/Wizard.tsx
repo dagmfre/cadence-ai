@@ -82,22 +82,27 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
     }
   };
 
+  /**
+   * Two different things, deliberately separated: saving the workspace MUST succeed,
+   * but the first scan is best-effort. A repo with no milestone (or no board, or an
+   * empty sprint) is a setup state, not a wizard failure — so it must never trap the
+   * user here. The dashboard is where that guidance belongs.
+   */
   const finish = async () => {
     setBusy(true);
     setError(null);
+    const teamMap = Object.fromEntries(roster.filter((r) => r.slackId).map((r) => [r.githubLogin, r.slackId!]));
     try {
-      const teamMap = Object.fromEntries(roster.filter((r) => r.slackId).map((r) => [r.githubLogin, r.slackId!]));
       await api.wizardComplete(teamMap, autonomy);
-      setScanning(true);
-      await api.scan(); // first scan, live
-      onChanged();
-      nav("/");
     } catch (e) {
-      setScanning(false); // otherwise the button stays stuck on "Running your first scan…"
-      setError(`${(e as Error).message} — your settings were saved; you can open the dashboard and rescan.`);
-    } finally {
+      setError(`Couldn't save your setup: ${(e as Error).message}`);
       setBusy(false);
+      return;
     }
+    setScanning(true);
+    await api.scan().catch(() => {}); // warms the dashboard; failure is handled there
+    onChanged();
+    nav("/");
   };
 
   return (

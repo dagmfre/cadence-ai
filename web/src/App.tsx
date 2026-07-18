@@ -238,7 +238,7 @@ export default function App() {
         <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1180px] px-4 py-5 sm:px-7 sm:py-6">
             <Routes>
-              <Route path="/" element={<Overview />} />
+              <Route path="/" element={<Overview repo={ws.repo} />} />
               <Route path="/actions" element={<Actions onPendingChange={setPendingCount} />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/settings" element={<Settings workspace={ws} onChanged={refreshWs} />} />

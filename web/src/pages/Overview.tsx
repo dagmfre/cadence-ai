@@ -84,7 +84,7 @@ function LoadingView() {
   );
 }
 
-export default function Overview() {
+export default function Overview({ repo }: { repo?: string | null }) {
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,15 +117,22 @@ export default function Overview() {
       {/* Header */}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="mb-1 text-xl font-semibold leading-[26px]">{model?.sprint.title ?? "Loading sprint…"}</h1>
+          <h1 className="mb-1 text-xl font-semibold leading-[26px]">
+            {model ? model.sprint.title : loading ? "Loading sprint…" : "No active sprint"}
+          </h1>
+          {/* Don't print placeholder sprint metadata when there is no sprint to describe. */}
           <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
-            <span className="font-mono">{model?.repo ?? "—"}</span>
-            <span className="text-ink-faint">·</span>
-            <span>due {due}</span>
-            <span className="text-ink-faint">·</span>
-            <span>
-              {model?.sprint.closedCount ?? 0} closed / {model?.sprint.openCount ?? 0} open
-            </span>
+            <span className="font-mono">{model?.repo ?? repo ?? "—"}</span>
+            {model && (
+              <>
+                <span className="text-ink-faint">·</span>
+                <span>due {due}</span>
+                <span className="text-ink-faint">·</span>
+                <span>
+                  {model.sprint.closedCount} closed / {model.sprint.openCount} open
+                </span>
+              </>
+            )}
           </div>
         </div>
         <button
@@ -142,13 +149,21 @@ export default function Overview() {
         <div role="alert" className="rounded-[10px] border border-border bg-card px-5 py-6 text-center">
           <p className="font-medium">Nothing to scan yet</p>
           <p className="mx-auto mt-1.5 max-w-[60ch] text-sm text-muted-foreground">{error}</p>
-          <button
-            onClick={load}
-            className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <RefreshCw className="size-3.5" aria-hidden />
-            Scan again
-          </button>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <button
+              onClick={load}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <RefreshCw className="size-3.5" aria-hidden />
+              Scan again
+            </button>
+            <Link
+              to="/wizard"
+              className="inline-flex h-8 items-center rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
+              Change repository
+            </Link>
+          </div>
         </div>
       )}
 
