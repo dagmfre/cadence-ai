@@ -90,11 +90,15 @@ export function registerWizard(app: FastifyInstance): void {
 
   app.post("/api/wizard/repo", async (req, reply) => {
     const parsed = z
-      .object({ repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, 'Repository must look like "owner/name"'), projectNumber: z.number().int().positive().optional() })
+      .object({
+        repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, 'Repository must look like "owner/name"'),
+        // null is meaningful: "no Projects v2 board".
+        projectNumber: z.number().int().positive().nullable().optional(),
+      })
       .safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? "Invalid repository" });
     const { repo, projectNumber } = parsed.data;
-    await saveWorkspace({ repo, ...(projectNumber != null && { projectNumber }) });
+    await saveWorkspace({ repo, ...(projectNumber !== undefined && { projectNumber }) });
     return { saved: true };
   });
 

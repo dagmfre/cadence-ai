@@ -26,7 +26,7 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
   const [repos, setRepos] = useState<{ fullName: string }[]>([]);
   const [boards, setBoards] = useState<{ number: number; title: string }[]>([]);
   const [repo, setRepo] = useState(workspace.repo ?? "");
-  const [board, setBoard] = useState(String(workspace.projectNumber));
+  const [board, setBoard] = useState(workspace.projectNumber == null ? "none" : String(workspace.projectNumber));
   // Step 2 state
   const [slackToken, setSlackToken] = useState("");
   const [channels, setChannels] = useState<{ id: string; name: string; isMember: boolean }[]>([]);
@@ -180,12 +180,13 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Projects v2 board</Label>
+                    <Label>Projects v2 board (optional)</Label>
                     <Select value={board} onValueChange={setBoard}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pick a board" />
+                        <SelectValue placeholder={discovering ? "Loading your boards…" : "No board"} />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="none">No board — skip board signals</SelectItem>
                         {boards.map((b) => (
                           <SelectItem key={b.number} value={String(b.number)}>
                             {b.title}
@@ -193,8 +194,15 @@ export default function Wizard({ workspace, onChanged }: { workspace: Workspace;
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      A board adds column signals like “parked in In review”. Everything else works without one.
+                    </p>
                   </div>
-                  <Button className="w-full" disabled={busy || !repo} onClick={() => run(() => api.wizardRepo(repo, Number(board)), 1)}>
+                  <Button
+                    className="w-full"
+                    disabled={busy || !repo}
+                    onClick={() => run(() => api.wizardRepo(repo, board === "none" ? null : Number(board)), 1)}
+                  >
                     {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
                     Continue
                   </Button>

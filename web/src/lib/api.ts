@@ -71,7 +71,7 @@ export interface Workspace {
   githubConnected: boolean;
   githubLogin: string | null;
   repo: string | null;
-  projectNumber: number;
+  projectNumber: number | null;
   slackConnected: boolean;
   slackChannelId: string | null;
   teamMap: Record<string, string>;
@@ -154,7 +154,7 @@ export const api = {
   wizardGithubPat: (token: string) => req<{ login: string }>("/api/wizard/github", post({ token })),
   wizardRepos: () => req<{ fullName: string; private: boolean; openIssues: number }[]>("/api/wizard/repos"),
   wizardBoards: () => req<{ number: number; title: string }[]>("/api/wizard/boards"),
-  wizardRepo: (repo: string, projectNumber?: number) => req<{ saved: true }>("/api/wizard/repo", post({ repo, projectNumber })),
+  wizardRepo: (repo: string, projectNumber: number | null) => req<{ saved: true }>("/api/wizard/repo", post({ repo, projectNumber })),
   wizardSlack: (botToken?: string, channelId?: string) =>
     req<{ team?: string; channels?: { id: string; name: string; isMember: boolean }[]; saved?: boolean }>(
       "/api/wizard/slack",

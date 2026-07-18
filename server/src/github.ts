@@ -35,18 +35,41 @@ async function ctx() {
   return { gh, owner, repo, projectNumber: ws.projectNumber };
 }
 
+let warnedBoard = false;
+
+/**
+ * Board status is ENRICHMENT, not a requirement: plenty of repos have no Projects v2
+ * board, and the board may be owned by a user or an org. Any failure here degrades to
+ * "no board data" instead of taking down the whole sprint fetch.
+ */
 async function boardStatuses(): Promise<Map<number, string>> {
-  const { gh, owner, projectNumber } = await ctx();
-  const q: any = await gh.graphql(
-    `query($login:String!,$num:Int!){ user(login:$login){ projectV2(number:$num){
-      items(first:100){ nodes{
-        content{ ... on Issue{ number } ... on PullRequest{ number } }
-        fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } } } }`,
-    { login: owner, num: projectNumber },
-  );
   const map = new Map<number, string>();
-  for (const n of q.user.projectV2?.items.nodes ?? [])
-    if (n.content?.number && n.fieldValueByName?.name) map.set(n.content.number, n.fieldValueByName.name);
+  const { gh, owner, projectNumber } = await ctx();
+  if (projectNumber == null) return map; // no board connected — nothing to read
+
+  const fields = `projectV2(number:$num){ items(first:100){ nodes{
+        content{ ... on Issue{ number } ... on PullRequest{ number } }
+        fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } } } } }`;
+
+  let q: any;
+  try {
+    q = await gh.graphql(`query($login:String!,$num:Int!){ user(login:$login){ ${fields} } organization(login:$login){ ${fields} } }`, {
+      login: owner,
+      num: projectNumber,
+    });
+  } catch (e) {
+    // A partial response still carries the half that resolved (owner is a user OR an org).
+    q = (e as { data?: unknown }).data;
+    if (!q) {
+      if (!warnedBoard) console.warn(`⚠ Couldn't read Projects v2 board #${projectNumber} for ${owner} — continuing without board status.`);
+      warnedBoard = true;
+      return map;
+    }
+  }
+
+  const nodes = q.user?.projectV2?.items?.nodes ?? q.organization?.projectV2?.items?.nodes ?? [];
+  for (const n of nodes)
+    if (n?.content?.number && n.fieldValueByName?.name) map.set(n.content.number, n.fieldValueByName.name);
   return map;
 }
 

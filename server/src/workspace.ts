@@ -14,7 +14,7 @@ export const WorkspaceConfigSchema = z.object({
   githubToken: z.string(),
   githubLogin: z.string(),
   repo: z.string(), // "owner/name"
-  projectNumber: z.number(),
+  projectNumber: z.number().nullable(),
   slackBotToken: z.string(),
   slackChannelId: z.string(),
   teamMap: z.record(z.string(), z.string()),
@@ -27,7 +27,8 @@ export interface Workspace {
   githubToken: string;
   githubLogin?: string;
   repo: string;
-  projectNumber: number;
+  /** null when no Projects v2 board is connected — board signals simply don't fire. */
+  projectNumber: number | null;
   slackBotToken?: string;
   slackChannelId?: string;
   teamMap: Record<string, string>;
@@ -70,7 +71,9 @@ export async function getWorkspace(): Promise<Workspace> {
     githubToken: saved.githubToken ?? e.GITHUB_TOKEN_CLASSIC ?? e.GITHUB_TOKEN ?? "",
     githubLogin: saved.githubLogin,
     repo: saved.repo ?? e.TARGET_REPO ?? "",
-    projectNumber: saved.projectNumber ?? (Number.isFinite(Number(e.PROJECT_NUMBER)) ? Number(e.PROJECT_NUMBER) : 2),
+    // null = no board connected. Never default to a number: a board that doesn't
+    // exist makes every GraphQL board read fail.
+    projectNumber: saved.projectNumber ?? (Number.isFinite(Number(e.PROJECT_NUMBER)) ? Number(e.PROJECT_NUMBER) : null),
     slackBotToken: saved.slackBotToken ?? e.SLACK_BOT_TOKEN,
     slackChannelId: saved.slackChannelId ?? e.SLACK_CHANNEL_ID,
     teamMap: saved.teamMap ?? parseTeamMap(e.TEAM_MAP),
