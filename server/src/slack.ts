@@ -24,11 +24,30 @@ export async function getSlackWeb(): Promise<WebClient | null> {
   return (await ctx()).client;
 }
 
+const slackError = (e: unknown) => String((e as { data?: { error?: string } })?.data?.error ?? (e as Error).message);
+
+/**
+ * Posting is best-effort and says what happened: the analysis behind the report is
+ * worth keeping even when Slack won't take it. `not_in_channel` is the one failure
+ * we can actually remedy ourselves — a public channel can be joined, so try that
+ * once before giving up, and otherwise say exactly what the human must do.
+ */
 export async function postReport(text: string): Promise<string> {
   const { client, channel } = await ctx();
   if (!client || !channel) return "skipped (no slack config)";
-  await client.chat.postMessage({ channel, text, unfurl_links: false });
-  return `posted to ${channel}`;
+  try {
+    await client.chat.postMessage({ channel, text, unfurl_links: false });
+    return `posted to ${channel}`;
+  } catch (e) {
+    if (slackError(e) !== "not_in_channel") return `report not posted (slack: ${slackError(e)})`;
+    try {
+      await client.conversations.join({ channel });
+      await client.chat.postMessage({ channel, text, unfurl_links: false });
+      return `posted to ${channel} (joined it first)`;
+    } catch (joinErr) {
+      return `report not posted — Cadence isn't in that channel and couldn't join it (${slackError(joinErr)}). Invite the bot with /invite @Cadence, or pick another channel in Settings.`;
+    }
+  }
 }
 
 /** Undo: delete recent messages Cadence's bot posted to the channel (keeps Slack demo-fresh). */

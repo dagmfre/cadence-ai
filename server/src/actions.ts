@@ -34,14 +34,21 @@ export async function executeOne(a: PendingAction): Promise<string> {
   return await notifyOwner(a.githubLogin!, a.value);
 }
 
-/** Returns a human-readable log of what was applied vs queued. */
+/**
+ * Returns a human-readable log of what was applied vs queued.
+ *
+ * Never throws. Delivery is the last step of a run that already cost real time and
+ * money; a Slack outage or an uninvited bot must not discard the analysis, which is
+ * exactly what happened when this pushed the report without catching. Each step
+ * reports its own outcome into the log instead.
+ */
 export async function executePlan(plan: ActionPlan, mode?: Autonomy): Promise<string[]> {
   mode ??= await autonomyMode();
   const log: string[] = [];
   const queue: PendingAction[] = [];
 
-  // The report is informational — posted in every mode except observe-drafting it too would hide the product
-  log.push(`report: ${await postReport(plan.slackReport)}`);
+  // The report is informational — posted in every mode; drafting it in observe too would hide the product
+  log.push(`report: ${await postReport(plan.slackReport).catch((e: Error) => `not posted (${e.message})`)}`);
 
   const candidates: PendingAction[] = [
     ...plan.githubActions.map((g) => pendingFrom({ kind: g.kind, itemNumber: g.itemNumber, value: g.value })),
@@ -54,9 +61,13 @@ export async function executePlan(plan: ActionPlan, mode?: Autonomy): Promise<st
   }
 
   if (queue.length) {
-    const existing = await store.getPending();
-    await store.setPending([...existing, ...queue]);
-    log.push(`${queue.length} action(s) queued for approval (${mode} mode)`);
+    try {
+      const existing = await store.getPending();
+      await store.setPending([...existing, ...queue]);
+      log.push(`${queue.length} action(s) queued for approval (${mode} mode)`);
+    } catch (e) {
+      log.push(`FAILED to queue ${queue.length} action(s): ${(e as Error).message}`);
+    }
   }
   return log;
 }
