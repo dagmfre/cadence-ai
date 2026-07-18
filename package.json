@@ -20,6 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.2",
     "@fastify/static": "^10.1.0",
     "@langchain/core": "^1.2.3",
     "@langchain/google-genai": "^2.2.0",

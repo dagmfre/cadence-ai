@@ -1,0 +1,105 @@
+/**
+ * Accounts & sessions (PRODUCT.md "Accounts & auth"). Deliberately small: email +
+ * password, scrypt-hashed, session token in an httpOnly cookie, both persisted in
+ * the same Redis store as everything else. One account owns one workspace today;
+ * the keys are already namespaced so multi-workspace is a later switch.
+ */
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
+import { z } from "zod";
+import { store } from "./store.js";
+
+const scryptAsync = promisify(scrypt) as (pw: string, salt: string, len: number) => Promise<Buffer>;
+const COOKIE = "cadence_session";
+const SESSION_DAYS = 30;
+
+const CredentialsSchema = z.object({
+  email: z.string().trim().toLowerCase().pipe(z.email()),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+async function hash(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("hex");
+  return `${salt}:${(await scryptAsync(password, salt, 64)).toString("hex")}`;
+}
+
+async function verify(password: string, stored: string): Promise<boolean> {
+  const [salt, key] = stored.split(":");
+  if (!salt || !key) return false;
+  const derived = await scryptAsync(password, salt, 64);
+  const expected = Buffer.from(key, "hex");
+  return derived.length === expected.length && timingSafeEqual(derived, expected);
+}
+
+/** The signed-in user for this request, or null. */
+export async function currentUser(req: FastifyRequest): Promise<{ email: string } | null> {
+  const token = req.cookies[COOKIE];
+  if (!token) return null;
+  const session = await store.getSession(token);
+  if (!session) return null;
+  if (Date.parse(session.expiresAt) < Date.now()) {
+    await store.deleteSession(token);
+    return null;
+  }
+  return { email: session.email };
+}
+
+function setSessionCookie(reply: FastifyReply, token: string) {
+  reply.setCookie(COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: SESSION_DAYS * 86400,
+  });
+}
+
+export function registerAuth(app: FastifyInstance): void {
+  /** Everything except auth, the OAuth callback and static assets requires a session. */
+  app.addHook("onRequest", async (req, reply) => {
+    const open = req.url.startsWith("/api/auth/") || req.url.startsWith("/auth/github");
+    if (open || !(req.url.startsWith("/api/") || req.url.startsWith("/run-daily-scan"))) return;
+    if (!(await currentUser(req))) return reply.code(401).send({ error: "Not signed in" });
+  });
+
+  app.post("/api/auth/register", async (req, reply) => {
+    const parsed = CredentialsSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? "Invalid details" });
+    const { email, password } = parsed.data;
+
+    if (await store.getUser(email))
+      return reply.code(409).send({ error: "That email already has an account — sign in instead." });
+
+    await store.setUser(email, { email, passwordHash: await hash(password), createdAt: new Date().toISOString() });
+    const token = randomBytes(32).toString("hex");
+    await store.setSession(token, { email, expiresAt: new Date(Date.now() + SESSION_DAYS * 86400_000).toISOString() });
+    setSessionCookie(reply, token);
+    return { email };
+  });
+
+  app.post("/api/auth/login", async (req, reply) => {
+    const parsed = CredentialsSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Enter your email and password." });
+    const { email, password } = parsed.data;
+
+    const user = await store.getUser(email);
+    if (!user || !(await verify(password, user.passwordHash)))
+      return reply.code(401).send({ error: "Those details don't match an account." });
+
+    const token = randomBytes(32).toString("hex");
+    await store.setSession(token, { email, expiresAt: new Date(Date.now() + SESSION_DAYS * 86400_000).toISOString() });
+    setSessionCookie(reply, token);
+    return { email };
+  });
+
+  app.post("/api/auth/logout", async (req, reply) => {
+    const token = req.cookies[COOKIE];
+    if (token) await store.deleteSession(token);
+    reply.clearCookie(COOKIE, { path: "/" });
+    return { signedOut: true };
+  });
+
+  /** The UI calls this on boot to decide between the auth screens and the app. */
+  app.get("/api/auth/me", async (req) => ({ user: await currentUser(req) }));
+}

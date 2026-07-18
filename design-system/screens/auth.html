@@ -1,0 +1,115 @@
+<!-- @dsCard group="Screens" name="Auth" subtitle="Sign in, register, account menu" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cadence — Auth</title>
+<style>
+  :root {
+    --bg: oklch(0.165 0.009 260); --surface: oklch(0.205 0.011 260);
+    --surface-2: oklch(0.245 0.013 260); --surface-3: oklch(0.285 0.014 260);
+    --border: oklch(0.32 0.014 260); --border-strong: oklch(0.42 0.016 260);
+    --ink: oklch(0.96 0.003 260); --ink-muted: oklch(0.74 0.010 260); --ink-faint: oklch(0.62 0.010 260);
+    --primary: oklch(0.76 0.115 200); --primary-ink: oklch(0.18 0.02 200);
+    --red: oklch(0.68 0.185 25); --green: oklch(0.74 0.145 150); --amber: oklch(0.80 0.145 80);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px; background:var(--bg); color:var(--ink);
+    font:400 14px/20px Inter, ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  h2.sec { font-size:11px; line-height:16px; letter-spacing:.02em; text-transform:uppercase;
+    color:var(--ink-faint); font-weight:500; margin:0 0 12px; }
+  .wrap { display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start; }
+  .col { flex:1; min-width:330px; }
+
+  .logo { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:18px; }
+  .logo svg { width:22px; height:22px; }
+  .logo span { font-size:16px; font-weight:600; letter-spacing:-.01em; }
+
+  .card { border:1px solid var(--border); border-radius:10px; background:var(--surface);
+    padding:24px; max-width:400px; margin:0 auto; }
+  .card h1 { font-size:16px; line-height:22px; font-weight:500; margin:0 0 4px; }
+  .card .sub { color:var(--ink-muted); font-size:13px; margin:0 0 20px; }
+  .field { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+  .field label { font-size:12px; color:var(--ink-muted); }
+  .input { height:34px; padding:0 10px; border-radius:6px; background:var(--surface-2);
+    border:1px solid var(--border-strong); color:var(--ink); font:400 14px Inter, sans-serif; width:100%; }
+  .input::placeholder { color:var(--ink-faint); }
+  .input.err { border-color:var(--red); }
+  .msg { font-size:12px; color:var(--red); }
+  .hint { font-size:12px; color:var(--ink-faint); display:flex; align-items:center; gap:6px; }
+  .bar { height:3px; flex:1; border-radius:999px; background:var(--surface-3); overflow:hidden; }
+  .bar i { display:block; height:100%; width:66%; background:var(--amber); }
+  .btn { display:flex; align-items:center; justify-content:center; gap:6px; height:36px; width:100%;
+    border:0; border-radius:6px; background:var(--primary); color:var(--primary-ink);
+    font:500 14px/1 Inter, sans-serif; cursor:pointer; margin-top:4px; }
+  .alt { text-align:center; font-size:13px; color:var(--ink-muted); margin-top:16px; }
+  .alt a { color:var(--primary); text-decoration:none; }
+
+  /* account menu */
+  .menu { width:232px; border:1px solid var(--border); border-radius:10px; background:var(--surface);
+    box-shadow:0 1px 2px oklch(0 0 0 / .4); padding:6px; }
+  .menu .who { padding:9px 10px 10px; border-bottom:1px solid var(--border); margin-bottom:6px; }
+  .menu .who b { display:block; font-size:13px; font-weight:500; }
+  .menu .who span { font-size:12px; color:var(--ink-faint); }
+  .mi { display:flex; align-items:center; gap:9px; height:32px; padding:0 10px; border-radius:6px;
+    font-size:13px; color:var(--ink-muted); text-decoration:none; }
+  .mi:hover { background:var(--surface-2); color:var(--ink); }
+  .mi svg { width:15px; height:15px; }
+  .mi.danger { color:var(--red); }
+  .av { width:26px; height:26px; border-radius:999px; display:grid; place-items:center;
+    font-size:11px; font-weight:600; color:oklch(.18 .02 260); background:oklch(.72 .12 200); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- SIGN IN -->
+    <div class="col">
+      <h2 class="sec">Sign in</h2>
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="3.5" cy="17" r="2.5" fill="oklch(0.76 0.115 200)"/><rect x="9" y="12" width="3.4" height="9" rx="1.2" fill="oklch(0.76 0.115 200)"/><rect x="14.3" y="8" width="3.4" height="13" rx="1.2" fill="oklch(0.76 0.115 200)" opacity=".8"/><rect x="19.6" y="3" width="3.4" height="18" rx="1.2" fill="oklch(0.76 0.115 200)" opacity=".6"/></svg>
+        <span>Cadence</span>
+      </div>
+      <div class="card">
+        <h1>Sign in</h1>
+        <p class="sub">Pick up where your sprint left off.</p>
+        <div class="field"><label for="e1">Email</label><input id="e1" class="input" value="dagmfre@gmail.com"></div>
+        <div class="field"><label for="p1">Password</label><input id="p1" class="input" type="password" value="••••••••••"></div>
+        <button class="btn">Sign in</button>
+        <p class="alt">No account yet? <a href="#">Create one</a></p>
+      </div>
+    </div>
+
+    <!-- REGISTER + error state -->
+    <div class="col">
+      <h2 class="sec">Register — with inline error</h2>
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="3.5" cy="17" r="2.5" fill="oklch(0.76 0.115 200)"/><rect x="9" y="12" width="3.4" height="9" rx="1.2" fill="oklch(0.76 0.115 200)"/><rect x="14.3" y="8" width="3.4" height="13" rx="1.2" fill="oklch(0.76 0.115 200)" opacity=".8"/><rect x="19.6" y="3" width="3.4" height="18" rx="1.2" fill="oklch(0.76 0.115 200)" opacity=".6"/></svg>
+        <span>Cadence</span>
+      </div>
+      <div class="card">
+        <h1>Create your account</h1>
+        <p class="sub">Then connect a repo, a board and a Slack channel — about two minutes.</p>
+        <div class="field"><label for="e2">Email</label>
+          <input id="e2" class="input err" value="dagmfre@gmail.com">
+          <span class="msg">That email already has an account — sign in instead.</span></div>
+        <div class="field"><label for="p2">Password</label>
+          <input id="p2" class="input" type="password" value="•••••••••">
+          <span class="hint"><span class="bar"><i></i></span> Good — 9 characters</span></div>
+        <button class="btn">Create account</button>
+        <p class="alt">Already registered? <a href="#">Sign in</a></p>
+      </div>
+    </div>
+
+    <!-- ACCOUNT MENU -->
+    <div class="col" style="min-width:260px; flex:0 0 260px">
+      <h2 class="sec">Account menu</h2>
+      <div style="display:flex; justify-content:flex-end; margin-bottom:8px"><span class="av">DS</span></div>
+      <div class="menu">
+        <div class="who"><b>Dagmfre Seid</b><span>dagmfre@gmail.com</span></div>
+        <a class="mi" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8M4.6 9a1.6 1.6 0 00-.3-1.8"/></svg>Settings</a>
+        <a class="mi danger" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Sign out</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

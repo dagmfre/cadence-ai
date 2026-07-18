@@ -1,0 +1,92 @@
+<!-- @dsCard group="Foundations" name="Colour ramp" subtitle="Graphite surfaces, cyan accent, reserved RAG semantics" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cadence — Colour</title>
+<style>
+  :root {
+    --bg: oklch(0.165 0.009 260);
+    --surface: oklch(0.205 0.011 260);
+    --surface-2: oklch(0.245 0.013 260);
+    --surface-3: oklch(0.285 0.014 260);
+    --border: oklch(0.32 0.014 260);
+    --border-strong: oklch(0.42 0.016 260);
+    --ink: oklch(0.96 0.003 260);
+    --ink-muted: oklch(0.74 0.010 260);
+    --ink-faint: oklch(0.62 0.010 260);
+    --primary: oklch(0.76 0.115 200);
+    --primary-hover: oklch(0.82 0.115 200);
+    --primary-ink: oklch(0.18 0.02 200);
+    --primary-wash: oklch(0.30 0.045 200);
+    --red: oklch(0.68 0.185 25);
+    --amber: oklch(0.80 0.145 80);
+    --green: oklch(0.74 0.145 150);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px; background: var(--bg); color: var(--ink);
+    font: 400 14px/20px Inter, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 20px; line-height: 26px; font-weight: 600; margin: 0 0 4px; }
+  p.lede { color: var(--ink-muted); margin: 0 0 28px; max-width: 68ch; }
+  h2 {
+    font-size: 11px; line-height: 16px; letter-spacing: 0.02em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 500; margin: 28px 0 10px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .sw { border: 1px solid var(--border); border-radius: 10px; padding: 12px; min-width: 168px; flex: 1; }
+  .chipbox { height: 40px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 10px; }
+  .name { font-weight: 500; }
+  .val { color: var(--ink-faint); font-size: 12px; font-family: ui-monospace, monospace; }
+  .note {
+    border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;
+    background: var(--surface); color: var(--ink-muted); max-width: 72ch;
+  }
+  .note strong { color: var(--ink); font-weight: 500; }
+  .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; vertical-align: middle; margin-right: 8px; }
+</style>
+</head>
+<body>
+  <h1>Colour</h1>
+  <p class="lede">Cool graphite surfaces (hue 260, near-zero chroma) with a single signal-cyan accent.
+    Red, amber and green are reserved semantics and may never be used decoratively.</p>
+
+  <h2>Surfaces &amp; ink</h2>
+  <div class="row">
+    <div class="sw"><div class="chipbox" style="background:var(--bg)"></div><div class="name">bg</div><div class="val">0.165 0.009 260</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--surface)"></div><div class="name">surface</div><div class="val">0.205 0.011 260</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--surface-2)"></div><div class="name">surface-2</div><div class="val">0.245 0.013 260</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--surface-3)"></div><div class="name">surface-3</div><div class="val">0.285 0.014 260</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--border-strong)"></div><div class="name">border-strong</div><div class="val">0.42 0.016 260</div></div>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <div class="sw"><div class="chipbox" style="background:var(--ink)"></div><div class="name">ink</div><div class="val">0.96 · body text</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--ink-muted)"></div><div class="name">ink-muted</div><div class="val">0.74 · AA everywhere</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--ink-faint)"></div><div class="name">ink-faint</div><div class="val">0.62 · meta only</div></div>
+  </div>
+
+  <h2>Brand — signal cyan</h2>
+  <div class="row">
+    <div class="sw"><div class="chipbox" style="background:var(--primary)"></div><div class="name">primary</div><div class="val">0.76 0.115 200</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--primary-hover)"></div><div class="name">primary-hover</div><div class="val">0.82 0.115 200</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--primary-wash)"></div><div class="name">primary-wash</div><div class="val">active nav fill</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--primary);color:var(--primary-ink);display:grid;place-items:center;font-weight:500">Aa</div><div class="name">primary-ink</div><div class="val">text on filled</div></div>
+  </div>
+
+  <h2>Semantic — reserved for RAG &amp; severity</h2>
+  <div class="row">
+    <div class="sw"><div class="chipbox" style="background:var(--red)"></div><div class="name"><span class="dot" style="background:var(--red)"></span>red</div><div class="val">off track · high</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--amber)"></div><div class="name"><span class="dot" style="background:var(--amber)"></span>amber</div><div class="val">at risk · medium</div></div>
+    <div class="sw"><div class="chipbox" style="background:var(--green)"></div><div class="name"><span class="dot" style="background:var(--green)"></span>green</div><div class="val">on track · low</div></div>
+  </div>
+
+  <h2>The rule</h2>
+  <div class="note">
+    <strong>Colour is spent, not sprinkled.</strong> Because red/amber/green carry forecast and
+    severity meaning, the brand accent must sit outside that band — hence cyan. If a button and a
+    risk state wear the same colour, the dashboard stops being readable at a glance.
+  </div>
+</body>
+</html>

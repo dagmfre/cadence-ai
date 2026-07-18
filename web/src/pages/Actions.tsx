@@ -13,14 +13,20 @@ const KIND = {
   dm: { icon: Send, verb: "DM" },
 } as const;
 
-export default function Actions() {
+export default function Actions({ onPendingChange }: { onPendingChange?: (n: number) => void }) {
   const [pending, setPending] = useState<PendingAction[] | null>(null);
   const [runs, setRuns] = useState<RunRecord[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // action id or "scan"
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = () => {
-    api.pending().then(setPending).catch(() => setPending([]));
+    api
+      .pending()
+      .then((p) => {
+        setPending(p);
+        onPendingChange?.(p.length);
+      })
+      .catch(() => setPending([]));
     api.runs().then(setRuns).catch(() => setRuns([]));
   };
   useEffect(load, []);

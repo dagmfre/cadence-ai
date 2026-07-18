@@ -1,0 +1,113 @@
+<!-- @dsCard group="Components" name="Action preview card" subtitle="The approve-and-apply moment — the product's most important control" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cadence — Action card</title>
+<style>
+  :root {
+    --bg: oklch(0.165 0.009 260); --surface: oklch(0.205 0.011 260);
+    --surface-2: oklch(0.245 0.013 260); --surface-3: oklch(0.285 0.014 260);
+    --border: oklch(0.32 0.014 260); --border-strong: oklch(0.42 0.016 260);
+    --ink: oklch(0.96 0.003 260); --ink-muted: oklch(0.74 0.010 260); --ink-faint: oklch(0.62 0.010 260);
+    --primary: oklch(0.76 0.115 200); --primary-ink: oklch(0.18 0.02 200);
+    --red: oklch(0.68 0.185 25); --green: oklch(0.74 0.145 150);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px; background:var(--bg); color:var(--ink);
+    font:400 14px/20px Inter, ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  .mono { font-family:ui-monospace, monospace; }
+  h1 { font-size:20px; line-height:26px; font-weight:600; margin:0 0 4px; }
+  p.lede { color:var(--ink-muted); margin:0 0 24px; max-width:70ch; }
+  h2 { font-size:11px; line-height:16px; letter-spacing:.02em; text-transform:uppercase;
+    color:var(--ink-faint); font-weight:500; margin:26px 0 10px; }
+
+  .card { border:1px solid var(--border); border-radius:10px; background:var(--surface);
+    padding:16px 18px; display:flex; gap:18px; align-items:flex-start; max-width:840px; }
+  .body { flex:1; min-width:0; }
+  .verb { display:flex; align-items:center; gap:8px; font-weight:500; }
+  .verb svg { width:16px; height:16px; color:var(--ink-muted); }
+  /* the exact text Cadence will post — never truncated */
+  blockquote { margin:10px 0 0; padding:10px 12px; background:var(--bg);
+    border:1px solid var(--border); border-radius:6px; color:var(--ink-muted);
+    font-size:13px; white-space:pre-wrap; }
+  .acts { display:flex; gap:8px; flex:none; }
+  .btn { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 11px;
+    border-radius:6px; font:500 13px/1 Inter, sans-serif; border:1px solid transparent; cursor:pointer; }
+  .btn svg { width:14px; height:14px; }
+  .btn-primary { background:var(--primary); color:var(--primary-ink); }
+  .btn-ghost { background:transparent; color:var(--ink-muted); }
+  .spin { width:13px; height:13px; border:2px solid currentColor; border-right-color:transparent;
+    border-radius:999px; animation:sp .7s linear infinite; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+  .applied { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--green); }
+  .applied svg { width:14px; height:14px; }
+  .failed { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--red); }
+  .note { font-size:13px; color:var(--ink-muted); border:1px solid var(--border);
+    border-radius:10px; background:var(--surface); padding:14px 16px; max-width:70ch; }
+  .note b { color:var(--ink); font-weight:500; }
+  @media (prefers-reduced-motion: reduce) { * { animation-duration:.01ms !important; } }
+</style>
+</head>
+<body>
+  <h1>Action preview card</h1>
+  <p class="lede">Cadence writes to someone’s repo and DMs their team. The human must see the
+    <b>exact</b> text before it goes out, so the payload is shown verbatim, never truncated, and the
+    approve control always reads as consequential.</p>
+
+  <h2>Default — comment on a PR</h2>
+  <div class="card">
+    <div class="body">
+      <div class="verb">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 15a2 2 0 01-2 2H8l-4 4V5a2 2 0 012-2h12a2 2 0 012 2z"/></svg>
+        Comment on <span class="mono">#12</span>
+      </div>
+      <blockquote>@dagmfre this PR is failing <span class="mono">delivery-check</span> because the title doesn’t follow Conventional Commits. Renaming it to <span class="mono">fix: failing-ci</span> should clear the check — it’s currently the only thing blocking this from merging before Friday.</blockquote>
+    </div>
+    <div class="acts">
+      <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg>Approve &amp; apply</button>
+      <button class="btn btn-ghost">Dismiss</button>
+    </div>
+  </div>
+
+  <h2>Label · DM · applying · failed</h2>
+  <div class="card" style="margin-bottom:10px">
+    <div class="body">
+      <div class="verb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0l-7.2-7.2a2 2 0 01-.6-1.4V5a2 2 0 012-2h7a2 2 0 011.4.6l7.4 7.4a2 2 0 010 2.4z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor"/></svg>Label <span class="mono">#7</span></div>
+      <blockquote>at-risk</blockquote>
+    </div>
+    <div class="acts">
+      <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg>Approve &amp; apply</button>
+      <button class="btn btn-ghost">Dismiss</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:10px">
+    <div class="body">
+      <div class="verb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>DM <span class="mono">@dagmfre</span></div>
+      <blockquote>You’re carrying five open PRs and they’re now the sprint’s bottleneck. Moving two reviews to dagmfrea today would recover roughly three days of slip.</blockquote>
+    </div>
+    <div class="acts"><span class="applied"><span class="spin"></span> Applying…</span></div>
+  </div>
+
+  <div class="card">
+    <div class="body">
+      <div class="verb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>DM <span class="mono">@newcontributor</span></div>
+      <blockquote>Heads up — issue #5 has been blocked for eight days with no owner.</blockquote>
+      <p style="margin:8px 0 0" class="failed">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        Not mapped to a Slack member — posted to the channel instead. Fix the mapping in Settings.
+      </p>
+    </div>
+    <div class="acts"><button class="btn btn-ghost">Dismiss</button></div>
+  </div>
+
+  <h2>Why this card is shaped this way</h2>
+  <div class="note">
+    <b>The payload is the content.</b> A summary (“comment on #12”) is not enough to consent to;
+    the reviewer needs the words that will appear under their name. So the quoted block gets the
+    space, wraps rather than truncates, and sits on the deepest surface so it reads as the literal
+    thing. Approve is the only filled button on the row; Dismiss stays ghost.
+  </div>
+</body>
+</html>

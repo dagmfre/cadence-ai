@@ -55,6 +55,24 @@ async function set(key: string, value: unknown): Promise<void> {
 }
 
 export const store = {
+  // ---- accounts & sessions (auth.ts owns the crypto) ----
+  async getUser(email: string): Promise<{ email: string; passwordHash: string; createdAt: string } | null> {
+    return get(`user:${email}`);
+  },
+  async setUser(email: string, user: { email: string; passwordHash: string; createdAt: string }) {
+    await set(`user:${email}`, user);
+  },
+  async getSession(token: string): Promise<{ email: string; expiresAt: string } | null> {
+    return get(`session:${token}`);
+  },
+  async setSession(token: string, session: { email: string; expiresAt: string }) {
+    await set(`session:${token}`, session);
+  },
+  async deleteSession(token: string) {
+    if (redis) await redis.del(`session:${token}`);
+    else mem.delete(`session:${token}`);
+  },
+
   /** Raw workspace config record; workspace.ts owns the schema (avoids an import cycle). */
   async getConfig(): Promise<unknown> {
     return get<unknown>(`${WS}:config`);

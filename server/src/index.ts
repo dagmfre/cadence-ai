@@ -7,8 +7,12 @@ import { existsSync } from "node:fs";
 import { runScan } from "./scan.js";
 import { store } from "./store.js";
 import { registerWizard } from "./wizard.js";
+import { registerAuth } from "./auth.js";
+import fastifyCookie from "@fastify/cookie";
 
 const app = Fastify({ logger: { level: "warn" } });
+await app.register(fastifyCookie);
+registerAuth(app); // must precede the routes it guards
 registerWizard(app);
 
 app.get("/api/scan", async () => {

@@ -1,37 +1,37 @@
 @import "tailwindcss";
 
 /*
- * Cadence "Night Shift" — DESIGN.md is the token source of truth.
- * Dark-only product surface: warm-tinted dark neutrals (hue 40), one burnt-amber
- * brand accent, RAG trio for forecast/severity only.
+ * Cadence "Control Room" v2 — DESIGN.md is the token source of truth.
+ * Cool graphite surfaces (hue 260) + one signal-cyan accent. Red/amber/green are
+ * RESERVED semantics (forecast RAG + severity) and never decorative.
  */
 :root {
   color-scheme: dark;
 
-  --background: oklch(0.145 0.008 40);
-  --foreground: oklch(0.94 0.005 40);
-  --card: oklch(0.185 0.009 40);
-  --card-foreground: oklch(0.94 0.005 40);
-  --popover: oklch(0.185 0.009 40);
-  --popover-foreground: oklch(0.94 0.005 40);
-  --primary: oklch(0.72 0.16 40);
-  --primary-foreground: oklch(0.15 0.01 40);
-  --secondary: oklch(0.225 0.01 40);
-  --secondary-foreground: oklch(0.94 0.005 40);
-  --muted: oklch(0.225 0.01 40);
-  --muted-foreground: oklch(0.68 0.01 40);
-  --accent: oklch(0.225 0.01 40);
-  --accent-foreground: oklch(0.94 0.005 40);
-  --destructive: oklch(0.62 0.19 25);
+  --background: oklch(0.165 0.009 260);
+  --foreground: oklch(0.96 0.003 260);
+  --card: oklch(0.205 0.011 260);
+  --card-foreground: oklch(0.96 0.003 260);
+  --popover: oklch(0.205 0.011 260);
+  --popover-foreground: oklch(0.96 0.003 260);
+  --primary: oklch(0.76 0.115 200);
+  --primary-foreground: oklch(0.18 0.02 200);
+  --secondary: oklch(0.245 0.013 260);
+  --secondary-foreground: oklch(0.96 0.003 260);
+  --muted: oklch(0.245 0.013 260);
+  --muted-foreground: oklch(0.74 0.010 260);
+  --accent: oklch(0.285 0.014 260);
+  --accent-foreground: oklch(0.96 0.003 260);
+  --destructive: oklch(0.68 0.185 25);
   --destructive-foreground: oklch(0.97 0.005 25);
-  --border: oklch(0.28 0.012 40);
-  --input: oklch(0.28 0.012 40);
-  --ring: oklch(0.72 0.16 40);
+  --border: oklch(0.32 0.014 260);
+  --input: oklch(0.42 0.016 260);
+  --ring: oklch(0.76 0.115 200);
 
   /* RAG semantic trio — text + dot markers only, never pill backgrounds */
-  --rag-red: oklch(0.62 0.19 25);
-  --rag-amber: oklch(0.75 0.14 85);
-  --rag-green: oklch(0.72 0.15 150);
+  --rag-red: oklch(0.68 0.185 25);
+  --rag-amber: oklch(0.80 0.145 80);
+  --rag-green: oklch(0.74 0.145 150);
 
   --radius: 0.5rem;
 }

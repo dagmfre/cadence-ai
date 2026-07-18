@@ -1,0 +1,261 @@
+<!-- @dsCard group="Screens" name="Overview" subtitle="Shell, logo, RAG banner, risk cards, board, items table" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cadence — Overview</title>
+<style>
+  :root {
+    --bg: oklch(0.165 0.009 260); --surface: oklch(0.205 0.011 260);
+    --surface-2: oklch(0.245 0.013 260); --surface-3: oklch(0.285 0.014 260);
+    --border: oklch(0.32 0.014 260); --border-strong: oklch(0.42 0.016 260);
+    --ink: oklch(0.96 0.003 260); --ink-muted: oklch(0.74 0.010 260); --ink-faint: oklch(0.62 0.010 260);
+    --primary: oklch(0.76 0.115 200); --primary-ink: oklch(0.18 0.02 200); --primary-wash: oklch(0.30 0.045 200);
+    --red: oklch(0.68 0.185 25); --amber: oklch(0.80 0.145 80); --green: oklch(0.74 0.145 150);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font:400 14px/20px Inter, ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  .mono { font-family:ui-monospace, "Cascadia Code", monospace; }
+
+  /* ---- Top bar ---- */
+  .top { height:56px; background:var(--surface); border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:16px; padding:0 16px; }
+  .logo { display:flex; align-items:center; gap:8px; text-decoration:none; color:var(--ink); }
+  .logo svg { width:20px; height:20px; }
+  .logo span { font-size:15px; font-weight:600; letter-spacing:-.01em; }
+  .ws { display:flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:6px;
+    background:var(--surface-2); border:1px solid var(--border); font-size:13px; color:var(--ink-muted); }
+  .search { flex:1; max-width:320px; height:30px; border-radius:6px; background:var(--surface-2);
+    border:1px solid var(--border); display:flex; align-items:center; gap:8px; padding:0 10px;
+    color:var(--ink-faint); font-size:13px; }
+  .search svg { width:14px; height:14px; }
+  .spacer { flex:1; }
+  .icon-btn { width:30px; height:30px; border-radius:6px; display:grid; place-items:center;
+    color:var(--ink-muted); position:relative; }
+  .icon-btn svg { width:16px; height:16px; }
+  .badge-dot { position:absolute; top:4px; right:4px; min-width:14px; height:14px; padding:0 3px;
+    border-radius:999px; background:var(--primary); color:var(--primary-ink);
+    font-size:10px; font-weight:600; display:grid; place-items:center; }
+  .btn { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border:0;
+    border-radius:6px; font:500 14px/1 Inter, sans-serif; cursor:pointer; }
+  .btn svg { width:16px; height:16px; }
+  .btn-primary { background:var(--primary); color:var(--primary-ink); }
+  .btn-secondary { background:var(--surface-2); color:var(--ink); border:1px solid var(--border-strong); }
+  .av { width:26px; height:26px; border-radius:999px; display:grid; place-items:center;
+    font-size:11px; font-weight:600; color:oklch(.18 .02 260); background:oklch(.72 .12 200); }
+
+  /* ---- Shell ---- */
+  .shell { display:flex; min-height:calc(100vh - 56px); }
+  .side { width:232px; flex:none; background:var(--surface-2); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; padding:14px 10px; gap:2px; }
+  .sect { font-size:11px; line-height:16px; letter-spacing:.02em; text-transform:uppercase;
+    color:var(--ink-faint); font-weight:500; padding:14px 10px 6px; }
+  .nav { display:flex; align-items:center; gap:9px; height:32px; padding:0 10px; border-radius:6px;
+    color:var(--ink-muted); font-size:13px; font-weight:500; position:relative; text-decoration:none; }
+  .nav svg { width:16px; height:16px; }
+  .nav.active { background:var(--primary-wash); color:var(--ink); }
+  .nav.active::before { content:""; position:absolute; left:-10px; top:6px; bottom:6px; width:2px;
+    border-radius:0 2px 2px 0; background:var(--primary); }
+  .nav .count { margin-left:auto; font-size:11px; background:var(--surface-3); color:var(--ink-muted);
+    border-radius:999px; padding:1px 6px; }
+  .side-foot { margin-top:auto; border-top:1px solid var(--border); padding:12px 10px 4px; }
+  .side-foot .k { font-size:11px; text-transform:uppercase; letter-spacing:.02em; color:var(--ink-faint); }
+  .dial { display:flex; gap:3px; margin-top:8px; background:var(--surface-3); border-radius:6px; padding:3px; }
+  .dial span { flex:1; text-align:center; font-size:11px; padding:4px 0; border-radius:4px; color:var(--ink-faint); }
+  .dial span.on { background:var(--primary-wash); color:var(--ink); font-weight:500; }
+
+  main { flex:1; min-width:0; padding:24px 28px; max-width:1180px; }
+  .head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:20px; }
+  h1 { font-size:20px; line-height:26px; font-weight:600; margin:0 0 3px; }
+  .sub { color:var(--ink-muted); font-size:13px; }
+  h2 { font-size:16px; line-height:22px; font-weight:500; margin:28px 0 12px; }
+
+  .panel { border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+
+  /* ---- RAG banner ---- */
+  .rag { display:flex; align-items:center; gap:40px; padding:20px 22px; flex-wrap:wrap; }
+  .stat { font-size:30px; line-height:32px; font-weight:600; letter-spacing:-.02em; color:var(--red); }
+  .status { display:flex; align-items:center; gap:7px; margin-top:6px; font-weight:500; color:var(--red); }
+  .status i { width:8px; height:8px; border-radius:999px; background:currentColor; }
+  dl { display:flex; gap:36px; margin:0; }
+  dt { font-size:12px; color:var(--ink-muted); }
+  dd { margin:3px 0 0; font-weight:500; }
+  .narr { color:var(--ink-muted); font-size:13px; max-width:62ch; }
+
+  /* ---- Risk cards ---- */
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:12px; }
+  .risk { border:1px solid var(--border); border-radius:10px; background:var(--surface); padding:14px 16px; }
+  .risk:hover { background:var(--surface-2); }
+  .risk-h { display:flex; align-items:baseline; gap:8px; min-width:0; }
+  .risk-h .num { color:var(--ink-faint); font-size:13px; flex:none; }
+  .risk-h .t { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .meta { display:flex; align-items:center; gap:8px; margin:8px 0 10px; }
+  .chip { display:inline-flex; align-items:center; gap:5px; height:20px; padding:0 8px;
+    border-radius:6px; font-size:12px; font-weight:500; }
+  .sev { background:var(--surface-3); color:var(--ink-muted); }
+  .sev i { width:6px; height:6px; border-radius:999px; }
+  .c-violet { background:oklch(.30 .045 300); color:oklch(.86 .09 300); }
+  .c-rose { background:oklch(.30 .045 10); color:oklch(.86 .09 10); }
+  .c-teal { background:oklch(.30 .045 195); color:oklch(.86 .09 195); }
+  .risk p { margin:0 0 5px; font-size:13px; }
+  .risk .cause { color:var(--ink-muted); }
+  .risk .next { color:var(--ink); }
+  .risk .next b { color:var(--ink-muted); font-weight:400; }
+
+  /* ---- Board ---- */
+  .cols { display:flex; gap:10px; }
+  .col { flex:1; border:1px solid var(--border); border-radius:10px; padding:11px 13px; background:var(--surface); }
+  .col .k { font-size:12px; color:var(--ink-muted); }
+  .col .v { font-size:16px; font-weight:500; margin-top:4px; }
+
+  /* ---- Table ---- */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.02em;
+    color:var(--ink-faint); font-weight:500; padding:8px 10px; background:var(--surface-2);
+    border-bottom:1px solid var(--border); }
+  th:first-child { border-radius:10px 0 0 0; } th:last-child { border-radius:0 10px 0 0; }
+  td { padding:9px 10px; border-bottom:1px solid var(--border); }
+  tr:hover td { background:var(--surface-2); }
+  td.num a { color:var(--ink-muted); text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+  td.num svg { width:11px; height:11px; }
+  .t-title { max-width:400px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ok { color:var(--green); } .bad { color:var(--red); } .dim { color:var(--ink-faint); }
+</style>
+</head>
+<body>
+  <!-- TOP BAR -->
+  <div class="top">
+    <a class="logo" href="/">
+      <!-- Cadence mark: three ascending bars + leading beat dot -->
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="3.5" cy="17" r="2.5" fill="oklch(0.76 0.115 200)"/>
+        <rect x="9" y="12" width="3.4" height="9" rx="1.2" fill="oklch(0.76 0.115 200)"/>
+        <rect x="14.3" y="8" width="3.4" height="13" rx="1.2" fill="oklch(0.76 0.115 200)" opacity=".8"/>
+        <rect x="19.6" y="3" width="3.4" height="18" rx="1.2" fill="oklch(0.76 0.115 200)" opacity=".6"/>
+      </svg>
+      <span>Cadence</span>
+    </a>
+    <div class="ws"><span class="mono">dagmfre/better-auth</span>
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      Search items, people, runs
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l14 8-14 8z"/></svg>Run scan</button>
+    <div class="icon-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8a6 6 0 10-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+      <span class="badge-dot">3</span>
+    </div>
+    <div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.5 2.5 0 014.7 1.2c0 1.7-2.3 2-2.3 3.3"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg></div>
+    <span class="av">DS</span>
+  </div>
+
+  <div class="shell">
+    <!-- SIDEBAR -->
+    <aside class="side">
+      <div class="sect">Delivery</div>
+      <a class="nav active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Overview</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7l3 3 5-5"/><path d="M11 12h9M11 17h9M4 17l3 3 5-5"/></svg>Actions<span class="count">3</span></a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 15a2 2 0 01-2 2H8l-4 4V5a2 2 0 012-2h12a2 2 0 012 2z"/></svg>Chat</a>
+      <div class="sect">Workspace</div>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1V21a2 2 0 11-4 0v-.1A1.6 1.6 0 004.9 19.8l-.1.1A2 2 0 112 17.1l.1-.1A1.6 1.6 0 003 15a2 2 0 00-1.8-1.2H1a2 2 0 010-4h.1A1.6 1.6 0 003 8.6a1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1A1.6 1.6 0 009 3.1V3a2 2 0 014 0v.1A1.6 1.6 0 0019.1 4.2l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8v.1A1.6 1.6 0 0023 10.9h.1a2 2 0 010 4H23a1.6 1.6 0 00-1.5 1z"/></svg>Settings</a>
+      <div class="side-foot">
+        <div class="k">Autonomy</div>
+        <div class="dial"><span>Observe</span><span class="on">Copilot</span><span>Autopilot</span></div>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main>
+      <div class="head">
+        <div>
+          <h1>Sprint 1 — Cadence Demo</h1>
+          <div class="sub"><span class="mono">dagmfre/better-auth</span> · due Jul 21 · 4 closed / 6 open</div>
+        </div>
+        <button class="btn btn-secondary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Rescan</button>
+      </div>
+
+      <div class="panel rag">
+        <div>
+          <div class="stat">26%</div>
+          <div class="status"><i></i>Off track</div>
+        </div>
+        <dl>
+          <div><dt>Projected slip</dt><dd>8d</dd></div>
+          <div><dt>Days left</dt><dd>2.7d</dd></div>
+          <div><dt>Closed last 7d</dt><dd>4</dd></div>
+        </dl>
+        <p class="narr">Five open PRs are all assigned to <b style="font-weight:500;color:var(--ink)">dagmfre</b>,
+          so review is the bottleneck rather than authorship. <span class="mono">#12</span> is failing CI
+          and two issues are blocked and unassigned — at the current close rate the sprint lands eight days late.</p>
+      </div>
+
+      <h2>Risks (17)</h2>
+      <div class="grid">
+        <article class="risk">
+          <div class="risk-h"><span class="num mono">#8</span><span class="t">[SSO] hasOrgAdminRole crashes when the org plugin maps role to an array</span></div>
+          <div class="meta"><span class="chip sev"><i style="background:var(--amber)"></i>Medium</span><span class="chip c-violet">board-stagnation</span></div>
+          <p>Parked in “In review” with no recent activity.</p>
+          <p class="cause">Waiting on a reviewer who already has five open PRs queued.</p>
+          <p class="next"><b>Next:</b> reassign review to dagmfrea and unblock the merge.</p>
+        </article>
+        <article class="risk">
+          <div class="risk-h"><span class="num mono">#12</span><span class="t">[seeded] failing-ci</span></div>
+          <div class="meta"><span class="chip sev"><i style="background:var(--red)"></i>High</span><span class="chip c-rose">failing-ci</span></div>
+          <p>CI check concluded failure on the head commit.</p>
+          <p class="cause">The PR title doesn’t follow Conventional Commits, so <span class="mono">delivery-check</span> fails.</p>
+          <p class="next"><b>Next:</b> rename the PR to <span class="mono">fix: …</span> and re-run the check.</p>
+        </article>
+        <article class="risk">
+          <div class="risk-h"><span class="num mono">#15</span><span class="t">[seeded] update-readme</span></div>
+          <div class="meta"><span class="chip sev"><i style="background:var(--red)"></i>High</span><span class="chip c-teal">review-bottleneck</span></div>
+          <p>dagmfre carries 5 assigned open items — this PR is queued behind that load.</p>
+          <p class="cause">Single-reviewer concentration; nothing else can merge until they clear.</p>
+          <p class="next"><b>Next:</b> spread three reviews across the team today.</p>
+        </article>
+        <article class="risk">
+          <div class="risk-h"><span class="num mono">#5</span><span class="t">Support RFC 8252 loopback callbacks in the Electron integration</span></div>
+          <div class="meta"><span class="chip sev"><i style="background:var(--red)"></i>High</span><span class="chip c-rose">blocked-issue</span></div>
+          <p>Carries the “blocked” label and has no assignee.</p>
+          <p class="cause">Blocked eight days with no owner, so nobody is clearing the blocker.</p>
+          <p class="next"><b>Next:</b> assign an owner or descope it from this sprint.</p>
+        </article>
+      </div>
+
+      <h2>Board</h2>
+      <div class="cols">
+        <div class="col"><div class="k">Backlog</div><div class="v">2</div></div>
+        <div class="col"><div class="k">Ready</div><div class="v">1</div></div>
+        <div class="col"><div class="k">In progress</div><div class="v">2</div></div>
+        <div class="col"><div class="k">In review</div><div class="v">1</div></div>
+        <div class="col"><div class="k">Done</div><div class="v">1</div></div>
+      </div>
+
+      <h2>Open items (11)</h2>
+      <div class="panel" style="overflow:hidden">
+        <table>
+          <thead><tr><th style="width:70px">#</th><th>Title</th><th style="width:92px">Type</th><th style="width:88px">CI</th><th style="width:110px">Board</th><th style="width:110px">Assignee</th></tr></thead>
+          <tbody>
+            <tr><td class="num mono"><a href="#">10 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 5h5v5M19 5l-8 8M11 5H5v14h14v-6"/></svg></a></td>
+              <td class="t-title">Bug: <span class="mono">@better-auth/scim</span> serves wrong mutability</td>
+              <td><span class="chip sev">issue</span></td><td class="dim">—</td><td class="dim">Backlog</td><td class="dim">unassigned</td></tr>
+            <tr><td class="num mono"><a href="#">12 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 5h5v5M19 5l-8 8M11 5H5v14h14v-6"/></svg></a></td>
+              <td class="t-title">[seeded] failing-ci</td>
+              <td><span class="chip sev">PR</span></td><td class="bad">failing</td><td class="dim">—</td>
+              <td><span class="av" style="width:22px;height:22px;font-size:10px">DS</span></td></tr>
+            <tr><td class="num mono"><a href="#">11 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 5h5v5M19 5l-8 8M11 5H5v14h14v-6"/></svg></a></td>
+              <td class="t-title">[seeded] draft-feature</td>
+              <td><span class="chip sev">draft PR</span></td><td class="ok">passing</td><td class="dim">—</td>
+              <td><span class="av" style="width:22px;height:22px;font-size:10px">DS</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

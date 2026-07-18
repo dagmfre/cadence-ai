@@ -93,21 +93,38 @@ export interface ConvoMessage {
   executed?: boolean;
 }
 
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, {
     ...init,
+    credentials: "same-origin", // session cookie
     headers: init?.body ? { "Content-Type": "application/json" } : undefined,
   });
   if (!r.ok) {
     const body = (await r.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `${r.status} ${r.statusText}`);
+    throw new ApiError(body?.error ?? `${r.status} ${r.statusText}`, r.status);
   }
   return r.json() as Promise<T>;
 }
 
 const post = (body?: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body ?? {}) });
 
+export interface AuthUser {
+  email: string;
+}
+
 export const api = {
+  me: () => req<{ user: AuthUser | null }>("/api/auth/me"),
+  register: (email: string, password: string) => req<AuthUser>("/api/auth/register", post({ email, password })),
+  login: (email: string, password: string) => req<AuthUser>("/api/auth/login", post({ email, password })),
+  logout: () => req<{ signedOut: true }>("/api/auth/logout", post()),
   workspace: () => req<Workspace>("/api/workspace"),
   scan: () => req<ScanResult>("/api/scan"),
   runDailyScan: () =>
